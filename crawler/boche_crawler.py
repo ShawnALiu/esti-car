@@ -40,11 +40,11 @@ class BoCheCrawler(BaseCrawler):
             # 请根据你抓包时的 User-Agent 修改这里
             self.session.headers.update({
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0',
-                'Referer': self.BASE_URL
+                'Referer': self.base_url
             })
 
             # --- 第一步：GET获取验证码图片信息 (GetCaptchaImage) ---
-            captcha_url = f"{self.BASE_URL}/HttpService/GetCaptchaImage"
+            captcha_url = f"{self.base_url}/HttpService/GetCaptchaImage"
             captcha_resp = self.session.get(captcha_url)
             resp_json = captcha_resp.json()
             if not resp_json['Succeed']:
@@ -61,7 +61,7 @@ class BoCheCrawler(BaseCrawler):
             print(f"获取到缺口距离 OffSetX: {offset_x}")
 
             # --- 第二步：GET请求发送短信验证码 (GetTelCode) ---
-            sms_url = f"{self.BASE_URL}/HttpService/GetTelCode"
+            sms_url = f"{self.base_url}/HttpService/GetTelCode"
             sms_params = {
                 'tel': self.username,
                 'type': 'mobileLogin',
@@ -80,7 +80,7 @@ class BoCheCrawler(BaseCrawler):
             print(f"短信发送成功，获取到 CheckCodeID: {check_code_id}")
 
             # --- 第三步：模拟登录 (UserLogin) ---
-            login_url = f"{self.BASE_URL}/HttpService/UserLogin"
+            login_url = f"{self.base_url}/HttpService/UserLogin"
             # data=字典  --> 自动编码为 application/x-www-form-urlencoded
             # json=字典  --> 自动编码为 application/json (不要用这个)
             login_data = {
@@ -161,7 +161,7 @@ class BoCheCrawler(BaseCrawler):
             else:
                 pai_mai_type = 20
             
-            url = f"{self.BASE_URL}/HttpService/GetPaiMaiList"
+            url = f"{self.base_url}/HttpService/GetPaiMaiList"
             params = {
                 "SessionID": self.session_id or "",
                 "UserID": self.user_id or "",
@@ -200,7 +200,7 @@ class BoCheCrawler(BaseCrawler):
         try:
             server_time = self._get_server_time()
             
-            url = f"{self.BASE_URL}/HttpService/SearchPaiMaiBiaoDiList"
+            url = f"{self.base_url}/HttpService/SearchPaiMaiBiaoDiList"
             params = {
                 "SessionID": self.session_id or "",
                 "UserID": self.user_id or "",
@@ -233,7 +233,7 @@ class BoCheCrawler(BaseCrawler):
 
     def get_sidebar_vehicle(self, pai_mai_id, filters=None):
         cars = []
-        url = f"{self.BASE_URL}/HttpService/GetSidebarVehicle"
+        url = f"{self.base_url}/HttpService/GetSidebarVehicle"
         try:
             params = {
                 "SessionID": self.session_id or "",
@@ -265,7 +265,7 @@ class BoCheCrawler(BaseCrawler):
 
     def get_biao_di_info(self, pai_mai_id, biao_di_id):
         try:
-            url = f"{self.BASE_URL}/HttpService/GetBiaoDiInfo"
+            url = f"{self.base_url}/HttpService/GetBiaoDiInfo"
             params = {
                 "SessionID": self.session_id or "",
                 "UserID": self.user_id or "",
@@ -291,7 +291,7 @@ class BoCheCrawler(BaseCrawler):
 
     def get_pai_pin_header_info(self, pai_mai_id, pai_pin_id):
         try:
-            url = f"{self.BASE_URL}/HttpService/GetPaiPinHeaderInfo"
+            url = f"{self.base_url}/HttpService/GetPaiPinHeaderInfo"
             params = {
                 "SessionID": self.session_id or "",
                 "UserID": self.user_id or "",
