@@ -1,0 +1,380 @@
+import requests
+import json
+import re
+import time
+from datetime import datetime
+from crawler.car_crawler import BaseCrawler
+from DrissionPage import ChromiumPage, SessionPage
+import uuid
+
+from utils import captcha_util
+
+
+class BoCheCrawler(BaseCrawler):
+    BASE_URL = "https://appservice.bochewang.com.cn"
+    
+    def __init__(self, username=None, password=None):
+        super().__init__(username, password)
+        self.session = requests.Session()
+
+        self.session_id = None
+        self.user_id = None
+        self.pai_mai_id = None
+        self.user_type = None
+        self.mai_jia_zhuang_tai = None
+        self.jiao_fei_deng_ji = None
+        self.zi_zhi_zhuang_tai = None
+        
+        self.car_wins_session_id = None
+        self.car_wins_session_key = None
+        self.car_wins_user_id = None
+        self.institution_id = None
+        
+        self.device_id = str(uuid.uuid4())
+
+    def login(self):
+        if not self.username or not self.password:
+            return False
+
+        try:
+            # 1. 设置通用的请求头 (模拟手机或电脑浏览器)
+            # 请根据你抓包时的 User-Agent 修改这里
+            self.session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0',
+                'Referer': self.BASE_URL
+            })
+
+            # --- 第一步：GET获取验证码图片信息 (GetCaptchaImage) ---
+            captcha_url = f"{self.BASE_URL}/HttpService/GetCaptchaImage"
+            captcha_resp = self.session.get(captcha_url)
+            resp_json = captcha_resp.json()
+            if not resp_json['Succeed']:
+                raise Exception(f"获取验证码失败: {resp_json['Message']}")
+
+            # 提取数据
+            self.token = resp_json['Data']['token']
+            new_pic_path = resp_json['Data']['images']['NewPicPath']
+            small_pic_path = resp_json['Data']['images']['SmallPicPath']
+            offset_y = resp_json['Data']['images']['OffSetY']
+            cut_height = resp_json['Data']['images']['CutHeight']
+            offset_x = captcha_util.find_gap_by_histogram(new_pic_path, offset_y, offset_y + cut_height, small_pic_path)
+            print(f"获取到 Token: {self.token}")
+            print(f"获取到缺口距离 OffSetX: {offset_x}")
+
+            # --- 第二步：GET请求发送短信验证码 (GetTelCode) ---
+            sms_url = f"{self.BASE_URL}/HttpService/GetTelCode"
+            sms_params = {
+                'tel': self.username,
+                'type': 'mobileLogin',
+                'token': self.token,
+                'isXinBanYanZhengMa': '1',
+                'OffSetX': offset_x,
+                'deviceid': self.device_id
+            }
+            print(f"请求短信接口: {sms_url}?{sms_params}")
+            sms_resp = self.session.get(sms_url, params=sms_params)
+            sms_json = sms_resp.json()
+            print("短信接口原始响应:", sms_resp.text)
+            if not sms_json['Succeed']:
+                raise Exception(f"发送短信失败: {sms_json.get('Message', sms_resp.text)}")
+            check_code_id = sms_json['Data']['checkCodeID']
+            print(f"短信发送成功，获取到 CheckCodeID: {check_code_id}")
+
+            # --- 第三步：模拟登录 (UserLogin) ---
+            login_url = f"{self.BASE_URL}/HttpService/UserLogin"
+            # data=字典  --> 自动编码为 application/x-www-form-urlencoded
+            # json=字典  --> 自动编码为 application/json (不要用这个)
+            login_data = {
+                'account': self.username,
+                'loginType': '20',
+                'validateCode': input("请输入收到的短信验证码: "),
+                'checkCodeID': check_code_id,
+                'deviceid': self.device_id
+            }
+
+            # 发送 POST 请求
+            # 如果接口要求 JSON 格式，请使用 json=login_data 代替 data=
+            login_resp = self.session.post(login_url, data=login_data)
+            login_json = login_resp.json()
+
+            if login_json['Succeed']:
+                print("🎉 登录成功！")
+                data = login_json.get("Data", {})
+                
+                self.session_id = data.get("SessionID")
+                self.user_id = data.get("UserID")
+                self.pai_mai_id = data.get("PaiMaiID")
+                self.user_type = data.get("UserType")
+                self.mai_jia_zhuang_tai = data.get("MaiJiaZhuangTai")
+                self.jiao_fei_deng_ji = data.get("JiaoFeiDengJi")
+                self.zi_zhi_zhuang_tai = data.get("ZiZhiZhuangTai")
+                
+                car_wins_data = data.get("carWinsData", {})
+                self.car_wins_session_id = car_wins_data.get("sessionID")
+                self.car_wins_session_key = car_wins_data.get("sessionKey")
+                self.car_wins_user_id = car_wins_data.get("carWinsUserID")
+                self.institution_id = car_wins_data.get("institutionID")
+                
+                self.session = session
+                return True
+            else:
+                raise Exception(f"登录失败: {login_json.get('Message', '未知错误')}")
+
+        except Exception as e:
+            print(f"博车网登录失败: {e}")
+            return False
+
+    def get_accident_cars(self, max_count=1000):
+        all_cars = []
+        meets = self.get_auction_meet_list("accident")
+
+        for meet in meets:
+            if len(all_cars) >= max_count:
+                break
+            cars = self.get_auction_cars(meet["id"])
+            for item in cars:
+                car = self._convert_car_to_db_format(meet["id"], item, "accident")
+                all_cars.append(car)
+
+        return all_cars[:max_count]
+
+    def get_used_cars(self, max_count=100):
+        all_cars = []
+        meets = self.get_auction_meet_list("used")
+
+        for meet in meets:
+            if len(all_cars) >= max_count:
+                break
+            cars = self.get_auction_cars(meet["id"])
+            for item in cars:
+                car = self._convert_car_to_db_format(item, "used")
+                all_cars.append(car)
+
+        return all_cars[:max_count]
+
+    def get_auction_meet_list(self, car_type="accident"):
+        auctions = []
+        try:
+            server_time = self._get_server_time()
+            
+            if car_type == "accident":
+                pai_mai_type = 10
+            else:
+                pai_mai_type = 20
+            
+            url = f"{self.BASE_URL}/HttpService/GetPaiMaiList"
+            params = {
+                "SessionID": self.session_id or "",
+                "UserID": self.user_id or "",
+                "ServerTime": f"/Date({server_time})/",
+                "UserType": self.user_type,
+                "MaiJiaZhuangTai": self.mai_jia_zhuang_tai,
+                "JiaoFeiDengJi": self.jiao_fei_deng_ji,
+                "ZiZhiZhuangTai": self.zi_zhi_zhuang_tai,
+                "deviceid": self.device_id or "",
+                "paiMaiHuiLeiXing": str(pai_mai_type),
+                "paiMaiZiLeiiXing": str(pai_mai_type)
+            }
+            
+            response = self.session.get(url, params=params, timeout=5)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("Succeed"):
+                    items = result.get("Data", [])
+                    for item in items:
+                        auctions.append({
+                            "id": item.get("id", ""),
+                            "name": item.get("paiMaiName", ""),
+                            "title": item.get("title", ""),
+                            "count": item.get("count", 0),
+                            "start_date": item.get("startDate", ""),
+                            "paimaihuiLeixing": item.get("paimaihuiLeixing", 0),
+                        })
+        except Exception as e:
+            print(f"获取拍卖会列表失败: {e}")
+        
+        return auctions
+
+    def get_auction_cars(self, pai_mai_id, filters=None):
+        cars = []
+        try:
+            server_time = self._get_server_time()
+            
+            url = f"{self.BASE_URL}/HttpService/SearchPaiMaiBiaoDiList"
+            params = {
+                "SessionID": self.session_id or "",
+                "UserID": self.user_id or "",
+                "PaiMaiID": pai_mai_id,
+                "ServerTime": f"/Date({server_time})/",
+                "UserType": self.user_type,
+                "MaiJiaZhuangTai": self.mai_jia_zhuang_tai,
+                "JiaoFeiDengJi": self.jiao_fei_deng_ji,
+                "ZiZhiZhuangTai": self.zi_zhi_zhuang_tai,
+                "deviceid": self.device_id or "",
+                "type": "all",
+                "query": json.dumps(filters or {}),
+                "specialSearch": "",
+                "orderFieldParam": ""
+            }
+            
+            response = self.session.get(url, params=params, timeout=5)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("Succeed"):
+                    data = result.get("Data", {})
+                    items = data.get("list", [])
+                    for item in items:
+                        cars.append(item)
+        except Exception as e:
+            print(f"获取拍卖车辆列表失败: {e}")
+        
+        return cars
+
+    def get_biao_di_info(self, pai_mai_id, biao_di_id):
+        try:
+            url = f"{self.BASE_URL}/HttpService/GetBiaoDiInfo"
+            params = {
+                "SessionID": self.session_id or "",
+                "UserID": self.user_id or "",
+                "PaiMaiID": pai_mai_id,
+                "ServerTime": f"/Date({self._get_server_time()})/",
+                "UserType": self.user_type,
+                "MaiJiaZhuangTai": self.mai_jia_zhuang_tai,
+                "JiaoFeiDengJi": self.jiao_fei_deng_ji,
+                "ZiZhiZhuangTai": self.zi_zhi_zhuang_tai,
+                "deviceid": self.device_id or "",
+                "biaoDiID": biao_di_id
+            }
+            response = self.session.get(url, params=params, timeout=5)
+
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("Succeed"):
+                    data = result.get("Data", {})
+                    return data
+        except Exception as e:
+            print(f"获取标的信息失败: {e}")
+        return None
+
+    def get_pai_pin_header_info(self, pai_mai_id, pai_pin_id):
+        try:
+            url = f"{self.BASE_URL}/HttpService/GetPaiPinHeaderInfo"
+            params = {
+                "SessionID": self.session_id or "",
+                "UserID": self.user_id or "",
+                "PaiMaiID": pai_mai_id,
+                "ServerTime": f"/Date({self._get_server_time()})/",
+                "UserType": self.user_type,
+                "MaiJiaZhuangTai": self.mai_jia_zhuang_tai,
+                "JiaoFeiDengJi": self.jiao_fei_deng_ji,
+                "ZiZhiZhuangTai": self.zi_zhi_zhuang_tai,
+                "deviceid": self.device_id or "",
+                "paiPinID": pai_pin_id
+            }
+            response = self.session.get(url, params=params, timeout=5)
+
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("Succeed"):
+                    data = result.get("Data", {})
+                    return data
+        except Exception as e:
+            print(f"获取拍品头信息失败: {e}")
+        return None
+
+    def _get_server_time(self):
+        return int(time.time() * 1000)
+
+    def _convert_car_to_db_format(self, pai_mai_id, item, car_type):
+        vehicle_name = item.get("vehicleName", "")
+        car_id = item.get("carID", "")
+        _, brand, model = self._parse_vehicle_name(vehicle_name)
+
+        # 通过详情接口获取图片
+        biao_di_info = self.get_biao_di_info(pai_mai_id, car_id)
+        if not biao_di_info or not biao_di_info['paiPinIDList']:
+            images = [item.get("imageURL", None)]
+        else:
+            pai_pin_id = biao_di_info['paiPinIDList'][0]
+            header_info = self.get_pai_pin_header_info(pai_mai_id, pai_pin_id)
+            if not header_info or not header_info['SamllMiddlePicFileIDs']:
+                images = []
+            else:
+                images = [item['middleFileid'] for item in header_info['SamllMiddlePicFileIDs']]
+
+        return {
+            "car_id": car_id,
+            "brand": brand,
+            "model": model,
+            "year": self._parse_year(item.get("ChuChangRiQi", "")),
+            "start_price": float(item.get("YiKouJia", 0) or 0),
+            "damage_cause": item.get("Chesunyuanyin", ""),
+            "auction_start_time": self._parse_date(item.get("PaiMaiHuiStartTime", "")),
+            "auction_end_time": self._parse_date(item.get("paiMaiJieShuDate", "")),
+            "is_new_energy": item.get("isXinNengYuan", None),
+            "detail_urls": images,   # json方式保存
+            "site_name": "博车网"
+        }
+
+    def _parse_vehicle_name(self, name):
+        year, brand, model = None, None, None
+        match = re.match(r"(\d{4})?\s*(.+?)\s+(.+)", name or "")
+        if match:
+            year = match.group(1) if match.group(1) else ""
+            brand = match.group(2).strip()
+            model = match.group(3).strip()
+        return year, brand, model
+
+    def _parse_year(self, date_str):
+        if not date_str:
+            return 0
+        try:
+            if "/" in date_str:
+                return int(date_str.split("/")[0])
+            return int(date_str[:4])
+        except:
+            return 0
+
+    def _parse_date(self, date_str):
+        if not date_str:
+            return ""
+        try:
+            match = re.search(r"\d+", date_str)
+            if match:
+                timestamp = int(match.group()) / 1000
+                dt = datetime.fromtimestamp(timestamp)
+                return dt.strftime("%Y-%m-%d %H:%M:%S")
+        except:
+            pass
+        return ""
+
+
+
+
+
+
+if __name__ == "__main__":
+    print("=== 测试博车网爬虫 ===")
+    _username = '15105149161'
+    _password = 'sal123456789'
+    crawler = BoCheCrawler(_username, _password)
+    
+    print("需要登录才能获取数据，请先配置账号")
+    session = crawler.login()
+
+    print("1. 事故车列表")
+    print("2. 二手车列表")
+    choice = input("请选择 (1/2): ").strip()
+    
+    if choice == "1":
+        cars = crawler.get_accident_cars(max_count=10)
+        print(f"找到 {len(cars)} 台事故车")
+        for c in cars[:3]:
+            print(f"  - {c['brand']} {c['model']}: ¥{c['start_price']}")
+    elif choice == "2":
+        cars = crawler.get_used_cars(max_count=10)
+        print(f"找到 {len(cars)} 台二手车")
+        for c in cars[:3]:
+            print(f"  - {c['brand']} {c['model']}: ¥{c['start_price']}")
