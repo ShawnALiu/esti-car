@@ -1,7 +1,9 @@
 class BaseCrawler:
-    def __init__(self, username=None, password=None):
+    def __init__(self, base_url=None, username=None, password=None):
+        self.base_url = base_url
         self.username = username
         self.password = password
+        self.site_name = None
         self.session = None
 
     def login(self):

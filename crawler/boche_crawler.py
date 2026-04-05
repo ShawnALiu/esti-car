@@ -10,10 +10,10 @@ from utils import captcha_util
 
 
 class BoCheCrawler(BaseCrawler):
-    BASE_URL = "https://appservice.bochewang.com.cn"
+    SITE_NAME = "博车网"
     
-    def __init__(self, username=None, password=None):
-        super().__init__(username, password)
+    def __init__(self, base_url=None, username=None, password=None):
+        super().__init__(base_url, username, password)
         self.session = requests.Session()
 
         self.session_id = None
@@ -323,7 +323,7 @@ class BoCheCrawler(BaseCrawler):
         
         return {
             "pai_mai_id": pai_mai_id,
-            "site_name": "博车网",
+            "site_name": self.SITE_NAME,
             "detail_urls": json.dumps(images, ensure_ascii=False),
             
             "car_id": item.get("carID", ""),
