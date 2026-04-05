@@ -37,13 +37,13 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.setFont(QFont("Microsoft YaHei", 10))
 
-        self.tab_valuation = ValuationTab(self.db)
         self.tab_account = AccountTab(self.db)
+        self.tab_valuation = ValuationTab(self.db)
         self.tab_task = TaskTab(self.db, self.executor)
         self.tab_data = DataTab(self.db)
 
-        self.tabs.addTab(self.tab_valuation, "车辆估价")
         self.tabs.addTab(self.tab_account, "账号配置")
+        self.tabs.addTab(self.tab_valuation, "车辆估价")
         self.tabs.addTab(self.tab_task, "任务配置")
         self.tabs.addTab(self.tab_data, "数据管理")
 

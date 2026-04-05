@@ -4,9 +4,39 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                               QTableWidgetItem, QPushButton, QLineEdit, QLabel,
-                              QHeaderView, QAbstractItemView, QMessageBox, QGroupBox)
-from PyQt5.QtCore import Qt
+                              QHeaderView, QAbstractItemView, QMessageBox,
+                              QDialog, QFormLayout)
 from datetime import datetime
+from crawler import CRAWLER_LIST
+
+
+class LoginDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("输入验证码")
+        self.setMinimumSize(400, 200)
+        self.init_ui()
+        
+    def init_ui(self):
+        layout = QFormLayout(self)
+        
+        self.code_input = QLineEdit()
+        self.code_input.setPlaceholderText("请输入收到的短信验证码")
+        layout.addRow("验证码:", self.code_input)
+        
+        btn_layout = QHBoxLayout()
+        ok_btn = QPushButton("确认")
+        ok_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(ok_btn)
+        
+        cancel_btn = QPushButton("取消")
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(cancel_btn)
+        
+        layout.addRow(btn_layout)
+        
+    def get_code(self):
+        return self.code_input.text().strip()
 
 
 class AccountTab(QWidget):
@@ -61,7 +91,7 @@ class AccountTab(QWidget):
 
         self.table = QTableWidget()
         self.table.setColumnCount(7)
-        self.table.setHorizontalHeaderLabels(["序号", "网站名", "网站地址", "账号", "密码", "创建时间", "更新时间"])
+        self.table.setHorizontalHeaderLabels(["序号", "网站名", "网站地址", "账号", "密码", "创建时间", "操作"])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
@@ -78,6 +108,12 @@ class AccountTab(QWidget):
         self.selected_id = None
         self.load_accounts()
 
+    def _get_crawler_dict(self):
+        crawler_dict = {}
+        for ins in CRAWLER_LIST:
+            crawler_dict[ins.site_name] = ins
+        return crawler_dict
+
     def load_accounts(self):
         accounts = self.db.query("SELECT * FROM account_config ORDER BY id ASC")
         self.table.setRowCount(len(accounts))
@@ -88,7 +124,51 @@ class AccountTab(QWidget):
             self.table.setItem(i, 3, QTableWidgetItem(acc["username"]))
             self.table.setItem(i, 4, QTableWidgetItem(acc["password"]))
             self.table.setItem(i, 5, QTableWidgetItem(acc["created_at"]))
-            self.table.setItem(i, 6, QTableWidgetItem(acc["updated_at"]))
+            
+            login_btn = QPushButton("登录")
+            login_btn.setProperty("account_id", acc["id"])
+            login_btn.setProperty("site_name", acc["site_name"])
+            login_btn.setProperty("site_url", acc["site_url"])
+            login_btn.setProperty("username", acc["username"])
+            login_btn.setProperty("password", acc["password"])
+            login_btn.clicked.connect(lambda checked, btn=login_btn: self.login_account(btn))
+            self.table.setCellWidget(i, 6, login_btn)
+
+    def login_account(self, btn):
+        site_name = btn.property("site_name")
+        site_url = btn.property("site_url")
+        username = btn.property("username")
+        password = btn.property("password")
+        
+        crawler_dict = self._get_crawler_dict()
+        
+        crawler = crawler_dict.get(site_name)
+        if not crawler:
+            QMessageBox.warning(self, "错误", f"未找到网站 [{site_name}] 对应的爬虫实例")
+            return
+        
+        try:
+            crawler.update_credentials(base_url=site_url, username=username, password=password)
+            check_code_id = crawler.pre_login()
+            if not check_code_id:
+                QMessageBox.warning(self, "错误", "短信验证码获取失败")
+                return
+
+            login_dialog = LoginDialog(self)
+            if login_dialog.exec_() == QDialog.Accepted:
+                verify_code = login_dialog.get_code()
+                if not verify_code:
+                    QMessageBox.warning(self, "错误", "请输入短信验证码")
+                    return
+                
+                result = crawler.login(check_code_id, verify_code)
+                if result:
+                    QMessageBox.information(self, "成功", f"[{site_name}] 登录成功！")
+                    self.load_accounts()
+                else:
+                    QMessageBox.warning(self, "失败", f"[{site_name}] 登录失败，请检查验证码是否正确")
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"登录过程出错: {str(e)}")
 
     def on_row_selected(self, row, col):
         self.selected_id = int(self.table.item(row, 0).text())

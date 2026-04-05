@@ -10,10 +10,9 @@ from utils import captcha_util
 
 
 class BoCheCrawler(BaseCrawler):
-    SITE_NAME = "博车网"
     
-    def __init__(self, base_url=None, username=None, password=None):
-        super().__init__(base_url, username, password)
+    def __init__(self, site_name="博车网", base_url=None, username=None, password=None):
+        super().__init__(site_name, base_url, username, password)
         self.session = requests.Session()
 
         self.session_id = None
@@ -31,13 +30,17 @@ class BoCheCrawler(BaseCrawler):
         
         self.device_id = str(uuid.uuid4())
 
-    def login(self):
-        if not self.username or not self.password:
-            return False
+    def update_credentials(self, base_url, username, password):
+        self.base_url = base_url
+        self.username = username
+        self.password = password
 
+
+    def pre_login(self):
+        if not self.username or not self.password:
+            return None
         try:
-            # 1. 设置通用的请求头 (模拟手机或电脑浏览器)
-            # 请根据你抓包时的 User-Agent 修改这里
+            # 设置通用的请求头 (模拟手机或电脑浏览器)
             self.session.headers.update({
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0',
                 'Referer': self.base_url
@@ -78,26 +81,31 @@ class BoCheCrawler(BaseCrawler):
                 raise Exception(f"发送短信失败: {sms_json.get('Message', sms_resp.text)}")
             check_code_id = sms_json['Data']['checkCodeID']
             print(f"短信发送成功，获取到 CheckCodeID: {check_code_id}")
+            return check_code_id
+        except Exception as e:
+            print(f"博车网登录失败: {e}")
+            return None
 
-            # --- 第三步：模拟登录 (UserLogin) ---
+    def login(self, check_code_id=None, verify_code=None):
+        if not self.username or not self.password:
+            return False
+
+        try:
+            # --- 模拟登录 (UserLogin) ---
             login_url = f"{self.base_url}/HttpService/UserLogin"
-            # data=字典  --> 自动编码为 application/x-www-form-urlencoded
-            # json=字典  --> 自动编码为 application/json (不要用这个)
             login_data = {
                 'account': self.username,
                 'loginType': '20',
-                'validateCode': input("请输入收到的短信验证码: "),
                 'checkCodeID': check_code_id,
+                'validateCode': verify_code,
                 'deviceid': self.device_id
             }
 
             # 发送 POST 请求
-            # 如果接口要求 JSON 格式，请使用 json=login_data 代替 data=
             login_resp = self.session.post(login_url, data=login_data)
             login_json = login_resp.json()
 
             if login_json['Succeed']:
-                print("🎉 登录成功！")
                 data = login_json.get("Data", {})
                 
                 self.session_id = data.get("SessionID")
@@ -113,8 +121,7 @@ class BoCheCrawler(BaseCrawler):
                 self.car_wins_session_key = car_wins_data.get("sessionKey")
                 self.car_wins_user_id = car_wins_data.get("carWinsUserID")
                 self.institution_id = car_wins_data.get("institutionID")
-                
-                self.session = session
+
                 return True
             else:
                 raise Exception(f"登录失败: {login_json.get('Message', '未知错误')}")
@@ -323,7 +330,7 @@ class BoCheCrawler(BaseCrawler):
         
         return {
             "pai_mai_id": pai_mai_id,
-            "site_name": self.SITE_NAME,
+            "site_name": self.site_name,
             "detail_urls": json.dumps(images, ensure_ascii=False),
             
             "car_id": item.get("carID", ""),
@@ -394,18 +401,21 @@ class BoCheCrawler(BaseCrawler):
         return ""
 
 
-
+boche_crawler_ins = BoCheCrawler()
 
 
 
 if __name__ == "__main__":
     print("=== 测试博车网爬虫 ===")
+    _base_url = 'https://appservice.bochewang.com.cn'
     _username = '15105149161'
     _password = 'sal123456789'
-    crawler = BoCheCrawler(_username, _password)
+    boche_crawler_ins.update_credentials(_base_url, _username, _password)
     
     print("需要登录才能获取数据，请先配置账号")
-    session = crawler.login()
+    _check_code_id = boche_crawler_ins.pre_login()
+    _verify_code = input("请输入收到的短信验证码: ")
+    session = boche_crawler_ins.login(_check_code_id, _verify_code)
 
     print("1. 事故车列表")
     print("2. 二手车列表")
