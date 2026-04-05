@@ -18,22 +18,31 @@ class LoginDialog(QDialog):
         self.init_ui()
         
     def init_ui(self):
-        layout = QFormLayout(self)
-        
+        # 1. 主布局改为垂直布局
+        main_layout = QVBoxLayout(self)
+
+        # 2. 表单部分（验证码输入框）
+        form_layout = QFormLayout()
         self.code_input = QLineEdit()
         self.code_input.setPlaceholderText("请输入收到的短信验证码")
-        layout.addRow("验证码:", self.code_input)
-        
+        form_layout.addRow("验证码:", self.code_input)
+
+        # 把表单添加到主布局
+        main_layout.addLayout(form_layout)
+
+        # 3. 按钮部分（放在最底下）
         btn_layout = QHBoxLayout()
+
         ok_btn = QPushButton("确认")
         ok_btn.clicked.connect(self.accept)
         btn_layout.addWidget(ok_btn)
-        
+
         cancel_btn = QPushButton("取消")
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
-        
-        layout.addRow(btn_layout)
+
+        # 把按钮组添加到主布局
+        main_layout.addLayout(btn_layout)
         
     def get_code(self):
         return self.code_input.text().strip()
