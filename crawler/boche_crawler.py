@@ -4,7 +4,6 @@ import re
 import time
 from datetime import datetime
 from crawler.car_crawler import BaseCrawler
-from DrissionPage import ChromiumPage, SessionPage
 import uuid
 
 from utils import captcha_util
@@ -131,7 +130,7 @@ class BoCheCrawler(BaseCrawler):
         for meet in meets:
             if len(all_cars) >= max_count:
                 break
-            cars = self.get_auction_cars(meet["id"])
+            cars = self.get_sidebar_vehicle(meet["id"])
             for item in cars:
                 car = self._convert_car_to_db_format(meet["id"], item, "accident")
                 all_cars.append(car)
@@ -147,7 +146,7 @@ class BoCheCrawler(BaseCrawler):
                 break
             cars = self.get_auction_cars(meet["id"])
             for item in cars:
-                car = self._convert_car_to_db_format(item, "used")
+                car = self._convert_car_to_db_format(meet["id"], item, "used")
                 all_cars.append(car)
 
         return all_cars[:max_count]
@@ -232,6 +231,38 @@ class BoCheCrawler(BaseCrawler):
         
         return cars
 
+    def get_sidebar_vehicle(self, pai_mai_id, filters=None):
+        cars = []
+        url = f"{self.BASE_URL}/HttpService/GetSidebarVehicle"
+        try:
+            params = {
+                "SessionID": self.session_id or "",
+                "UserID": self.user_id or "",
+                "PaiMaiID": pai_mai_id,
+                "ServerTime": f"/Date({self._get_server_time()})/",
+                "UserType": self.user_type,
+                "MaiJiaZhuangTai": self.mai_jia_zhuang_tai,
+                "JiaoFeiDengJi": self.jiao_fei_deng_ji,
+                "ZiZhiZhuangTai": self.zi_zhi_zhuang_tai,
+                "deviceid": self.device_id or "",
+                "type": "all",
+                "query": json.dumps(filters or {}),
+                "specialSearch": "",
+                "orderFieldParam": ""
+            }
+            response = self.session.get(url, params=params, timeout=5)
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("Succeed"):
+                    data = result.get("Data", {})
+                    items = data.get("CarList", [])
+                    for item in items:
+                        cars.append(item)
+        except Exception as e:
+            print(f"获取侧边栏拍卖车辆列表失败: {e}")
+
+        return cars
+
     def get_biao_di_info(self, pai_mai_id, biao_di_id):
         try:
             url = f"{self.BASE_URL}/HttpService/GetBiaoDiInfo"
@@ -288,34 +319,46 @@ class BoCheCrawler(BaseCrawler):
         return int(time.time() * 1000)
 
     def _convert_car_to_db_format(self, pai_mai_id, item, car_type):
-        vehicle_name = item.get("vehicleName", "")
-        car_id = item.get("carID", "")
-        _, brand, model = self._parse_vehicle_name(vehicle_name)
-
-        # 通过详情接口获取图片
-        biao_di_info = self.get_biao_di_info(pai_mai_id, car_id)
-        if not biao_di_info or not biao_di_info['paiPinIDList']:
-            images = [item.get("imageURL", None)]
-        else:
-            pai_pin_id = biao_di_info['paiPinIDList'][0]
-            header_info = self.get_pai_pin_header_info(pai_mai_id, pai_pin_id)
-            if not header_info or not header_info['SamllMiddlePicFileIDs']:
-                images = []
-            else:
-                images = [item['middleFileid'] for item in header_info['SamllMiddlePicFileIDs']]
-
+        images = [item.get("imageURL")] if item.get("imageURL") else []
+        
         return {
-            "car_id": car_id,
-            "brand": brand,
-            "model": model,
-            "year": self._parse_year(item.get("ChuChangRiQi", "")),
-            "start_price": float(item.get("YiKouJia", 0) or 0),
-            "damage_cause": item.get("Chesunyuanyin", ""),
-            "auction_start_time": self._parse_date(item.get("PaiMaiHuiStartTime", "")),
-            "auction_end_time": self._parse_date(item.get("paiMaiJieShuDate", "")),
-            "is_new_energy": item.get("isXinNengYuan", None),
-            "detail_urls": images,   # json方式保存
-            "site_name": "博车网"
+            "pai_mai_id": pai_mai_id,
+            "site_name": "博车网",
+            "detail_urls": json.dumps(images, ensure_ascii=False),
+            
+            "car_id": item.get("carID", ""),
+            "che_liang_pin_pai": item.get("cheLiangPinPai", ""),
+            "xuan_ze_xi_lie": item.get("xuanZeXiLie", ""),
+            "xuan_ze_zi_xi_lie": item.get("xuanZeZiXiLie", ""),
+            "pai_liang": item.get("paiLiang", ""),
+            "chu_chang_ri_qi": item.get("chuChangRiQi", ""),
+            "che_pai_hao": item.get("chePaiHao", ""),
+            "che_liang_zan_cun_di": item.get("cheLiangZanCunDi", ""),
+            "is_auction_finish": 1 if item.get("isAuctionFinish") else 0,
+            "yu_zhan_shi_jian": item.get("YuZhanShiJian", ""),
+            "attention": item.get("attention", ""),
+            "chesunyuanyin": item.get("chesunyuanyin", ""),
+            "pai_mai_hui_start_time": item.get("paiMaiHuiStartTime", ""),
+            "pai_mai_hui_lei_xing": item.get("paiMaiHuiLeiXing", 0),
+            "zui_xin_chu_jia": item.get("ZuiXinChuJia", ""),
+            "yi_kou_jia": float(item.get("yiKouJia", 0) or 0),
+            "gu_jia_ping_ji": item.get("guJiaPingJi", ""),
+            "wai_guan_ping_ji": item.get("waiGuanPingJi", ""),
+            "main_car": item.get("MainCar", 0),
+            "is_new_chu_jia": item.get("IsNewChuJia", 0),
+            "is_yi_kou_jia": item.get("IsYiKouJia", 0),
+            "is_xian_pai": 1 if item.get("IsXianPai") else 0,
+            "wu_zi_ming_cheng": item.get("wuZiMingCheng", ""),
+            "che_liang_zhong_lei": item.get("cheLiangZhongLei", ""),
+            "pei_jian_zhong_lei": item.get("peiJianZhongLei", ""),
+            "pai_mai_jie_shu_date": item.get("paiMaiJieShuDate", ""),
+            "vehicle_name": item.get("vehicleName", ""),
+            "is_xin_neng_yuan": 1 if item.get("isXinNengYuan") else 0,
+            "biao_di_type": item.get("BiaoDiType", 0),
+            "image_url": item.get("imageURL", ""),
+            "pai_pin_count": item.get("paiPinCount", 0),
+            "wei_guan_count": item.get("weiGuanCount", 0),
+            "bid_count": item.get("bidCount", 0),
         }
 
     def _parse_vehicle_name(self, name):
@@ -369,12 +412,12 @@ if __name__ == "__main__":
     choice = input("请选择 (1/2): ").strip()
     
     if choice == "1":
-        cars = crawler.get_accident_cars(max_count=10)
-        print(f"找到 {len(cars)} 台事故车")
-        for c in cars[:3]:
-            print(f"  - {c['brand']} {c['model']}: ¥{c['start_price']}")
+        _cars = crawler.get_accident_cars(max_count=10)
+        print(f"找到 {len(_cars)} 台事故车")
+        for c in _cars[:3]:
+            print(f"  - {c['che_liang_pin_pai']} {c['xuanZeZiXiLie']}: ¥{c['yi_kou_jia']}")
     elif choice == "2":
-        cars = crawler.get_used_cars(max_count=10)
-        print(f"找到 {len(cars)} 台二手车")
-        for c in cars[:3]:
-            print(f"  - {c['brand']} {c['model']}: ¥{c['start_price']}")
+        _cars = crawler.get_used_cars(max_count=10)
+        print(f"找到 {len(_cars)} 台二手车")
+        for c in _cars[:3]:
+            print(f"  - {c['che_liang_pin_pai']} {c['xuanZeZiXiLie']}: ¥{c['yi_kou_jia']}")
