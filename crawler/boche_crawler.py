@@ -326,7 +326,8 @@ class BoCheCrawler(BaseCrawler):
         return int(time.time() * 1000)
 
     def _convert_car_to_db_format(self, pai_mai_id, item, car_type):
-        images = [item.get("imageURL")] if item.get("imageURL") else []
+
+        images = self._get_images(pai_mai_id, item.get("carID", None), item.get("imageURL", None))
         
         return {
             "pai_mai_id": pai_mai_id,
@@ -399,6 +400,18 @@ class BoCheCrawler(BaseCrawler):
         except:
             pass
         return ""
+
+    def _get_images(self, pai_mai_id, biao_di_id, image_url):
+        biao_di_info = self.get_biao_di_info(pai_mai_id, biao_di_id)
+        if biao_di_info and biao_di_info['paiPinIDList']:
+            pai_pin_id = biao_di_info['paiPinIDList'][0]
+            header_info = self.get_pai_pin_header_info(pai_mai_id, pai_pin_id)
+            if header_info and header_info['SamllMiddlePicFileIDs']:
+                images = header_info['SamllMiddlePicFileIDs']
+                return images
+        images = [image_url] if image_url else []
+        return images
+
 
 
 boche_crawler_ins = BoCheCrawler()
