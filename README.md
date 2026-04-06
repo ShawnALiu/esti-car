@@ -121,7 +121,7 @@ esti-car/
 在「账号配置」中添加：
 
 - 网站名：博车网
-- 网站地址：https://www.bochewang.com.cn
+- 网站地址：https://appservice.bochewang.com.cn
 - 账号：您的博车网账号
 - 密码：您的博车网密码
 
