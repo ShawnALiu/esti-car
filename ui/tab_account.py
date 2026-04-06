@@ -7,12 +7,13 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                               QHeaderView, QAbstractItemView, QMessageBox,
                               QDialog, QFormLayout)
 from datetime import datetime
-from crawler import CRAWLER_LIST
+from crawler import CRAWLER_DICT
 
 
 class LoginDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.code_input = None
         self.setWindowTitle("输入验证码")
         self.setMinimumSize(400, 200)
         self.init_ui()
@@ -51,6 +52,12 @@ class LoginDialog(QDialog):
 class AccountTab(QWidget):
     def __init__(self, db):
         super().__init__()
+        self.selected_id = None
+        self.table = None
+        self.password_input = None
+        self.username_input = None
+        self.site_url_input = None
+        self.site_name_input = None
         self.db = db
         self.init_ui()
 
@@ -117,12 +124,6 @@ class AccountTab(QWidget):
         self.selected_id = None
         self.load_accounts()
 
-    def _get_crawler_dict(self):
-        crawler_dict = {}
-        for ins in CRAWLER_LIST:
-            crawler_dict[ins.site_name] = ins
-        return crawler_dict
-
     def load_accounts(self):
         accounts = self.db.query("SELECT * FROM account_config ORDER BY id ASC")
         self.table.setRowCount(len(accounts))
@@ -149,9 +150,7 @@ class AccountTab(QWidget):
         username = btn.property("username")
         password = btn.property("password")
         
-        crawler_dict = self._get_crawler_dict()
-        
-        crawler = crawler_dict.get(site_name)
+        crawler = CRAWLER_DICT.get(site_name)
         if not crawler:
             QMessageBox.warning(self, "错误", f"未找到网站 [{site_name}] 对应的爬虫实例")
             return

@@ -1,6 +1,8 @@
 import threading
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
+
+from crawler import CRAWLER_DICT
 from crawler.car_crawler import BaseCrawler
 from crawler.boche_crawler import BoCheCrawler
 
@@ -27,15 +29,6 @@ class TaskExecutor:
 
     def set_database(self, db):
         self.db = db
-
-    def _create_crawler(self, account):
-        site_url = account.get("site_url", "")
-        site_name = account.get("site_name", "")
-        
-        if "bochewang" in site_url.lower() or "boche" in site_name.lower():
-            return BoCheCrawler(account["username"], account["password"])
-        else:
-            raise NotImplementedError(f"不支持的网站: {site_name}")
 
     def start(self):
         if not self.scheduler.running:
@@ -66,11 +59,12 @@ class TaskExecutor:
         })
 
         self.active_tasks[task_id] = execution_id
-        crawler = None
-
         try:
-            crawler = self._create_crawler(account)
-            crawler.login()
+            site_name = account.get("site_name", "")
+            crawler = CRAWLER_DICT.get(site_name)
+            if not crawler:
+                print(f"错误。未找到网站 [{site_name}] 对应的爬虫实例")
+                return
             
             if task["task_type"] == "accident":
                 cars = crawler.get_accident_cars(max_count=task["max_count"])
