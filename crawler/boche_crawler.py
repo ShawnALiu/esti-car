@@ -339,7 +339,7 @@ class BoCheCrawler(BaseCrawler):
             "xuan_ze_xi_lie": item.get("xuanZeXiLie", ""),
             "xuan_ze_zi_xi_lie": item.get("xuanZeZiXiLie", ""),
             "pai_liang": item.get("paiLiang", ""),
-            "chu_chang_ri_qi": item.get("chuChangRiQi", ""),
+            "chu_chang_ri_qi": self._parse_year_from_chuchang(item.get("chuChangRiQi", "")),
             "che_pai_hao": item.get("chePaiHao", ""),
             "che_liang_zan_cun_di": item.get("cheLiangZanCunDi", ""),
             "is_auction_finish": 1 if item.get("isAuctionFinish") else 0,
@@ -385,6 +385,17 @@ class BoCheCrawler(BaseCrawler):
             if "/" in date_str:
                 return int(date_str.split("/")[0])
             return int(date_str[:4])
+        except:
+            return 0
+
+    def _parse_year_from_chuchang(self, date_str):
+        if not date_str:
+            return 0
+        try:
+            match = re.search(r"(\d{4})年", date_str)
+            if match:
+                return int(match.group(1))
+            return 0
         except:
             return 0
 
