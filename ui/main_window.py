@@ -43,8 +43,8 @@ class MainWindow(QMainWindow):
         self.tab_data = DataTab(self.db)
 
         self.tabs.addTab(self.tab_account, "账号配置")
-        self.tabs.addTab(self.tab_valuation, "车辆估价")
-        self.tabs.addTab(self.tab_task, "任务配置")
         self.tabs.addTab(self.tab_data, "数据管理")
+        self.tabs.addTab(self.tab_task, "任务配置")
+        self.tabs.addTab(self.tab_valuation, "车辆估价")
 
         layout.addWidget(self.tabs)
