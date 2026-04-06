@@ -422,12 +422,12 @@ if __name__ == "__main__":
     choice = input("请选择 (1/2): ").strip()
     
     if choice == "1":
-        _cars = crawler.get_accident_cars(max_count=10)
+        _cars = boche_crawler_ins.get_accident_cars(max_count=10)
         print(f"找到 {len(_cars)} 台事故车")
         for c in _cars[:3]:
             print(f"  - {c['che_liang_pin_pai']} {c['xuanZeZiXiLie']}: ¥{c['yi_kou_jia']}")
     elif choice == "2":
-        _cars = crawler.get_used_cars(max_count=10)
+        _cars = boche_crawler_ins.get_used_cars(max_count=10)
         print(f"找到 {len(_cars)} 台二手车")
         for c in _cars[:3]:
             print(f"  - {c['che_liang_pin_pai']} {c['xuanZeZiXiLie']}: ¥{c['yi_kou_jia']}")
