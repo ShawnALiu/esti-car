@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 import time
 import random
-import ddddocr
 
 import requests
 
@@ -24,15 +23,6 @@ def download_image(url):
     except Exception as e:
         print(f"下载异常: {e}")
         return None
-
-
-def get_distance_by_dddd(bg_img_path, slide_img_path):
-    det = ddddocr.DdddOcr(det=False, ocr=False, show_ad=False)
-    bg_img_bytes = download_image(bg_img_path)
-    slide_img_bytes = download_image(slide_img_path)
-    res = det.slide_match(slide_img_bytes, bg_img_bytes, simple_target=True)
-    print(res)  # {'target_y': 0, 'target': [184, 58, 246, 120]}
-    return res['target'][0]
 
 
 def get_distance(bg_img_path, start_y, end_y, slide_img_path):
