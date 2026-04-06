@@ -162,19 +162,27 @@ class AccountTab(QWidget):
                 QMessageBox.warning(self, "错误", "短信验证码获取失败")
                 return
 
-            login_dialog = LoginDialog(self)
-            if login_dialog.exec_() == QDialog.Accepted:
+            while True:
+                login_dialog = LoginDialog(self)
+                if login_dialog.exec_() != QDialog.Accepted:
+                    return
+                
                 verify_code = login_dialog.get_code()
                 if not verify_code:
                     QMessageBox.warning(self, "错误", "请输入短信验证码")
-                    return
+                    continue
                 
                 result = crawler.login(check_code_id, verify_code)
                 if result:
                     QMessageBox.information(self, "成功", f"[{site_name}] 登录成功！")
                     self.load_accounts()
+                    return
                 else:
-                    QMessageBox.warning(self, "失败", f"[{site_name}] 登录失败，请检查验证码是否正确")
+                    retry = QMessageBox.question(self, "验证码错误", 
+                        f"[{site_name}] 登录失败，验证码错误，是否重新输入？",
+                        QMessageBox.Yes | QMessageBox.No)
+                    if retry == QMessageBox.No:
+                        return
         except Exception as e:
             QMessageBox.critical(self, "错误", f"登录过程出错: {str(e)}")
 
