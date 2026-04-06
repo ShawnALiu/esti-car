@@ -181,9 +181,26 @@ class TaskTab(QWidget):
     def execute_task(self, task_id, btn, edit_btn):
         if task_id in self.executor.get_active_tasks():
             return
+        
+        self.executor.clear_last_error()
         btn.setEnabled(False)
         edit_btn.setEnabled(False)
         self.executor.execute_task(task_id)
+        
+        QTimer.singleShot(100, lambda: self.check_task_error(task_id, btn, edit_btn))
+    
+    def check_task_error(self, task_id, btn, edit_btn):
+        error = self.executor.get_last_error()
+        if error:
+            self.executor.clear_last_error()
+            if not btn.isVisible():
+                return
+            try:
+                btn.setEnabled(True)
+                edit_btn.setEnabled(True)
+            except:
+                pass
+            QMessageBox.warning(self, "错误", error)
 
     def show_edit_dialog(self, task_id):
         dialog = CreateTaskDialog(self.db, self, task_id)

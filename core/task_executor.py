@@ -26,6 +26,7 @@ class TaskExecutor:
         self.scheduler = BackgroundScheduler()
         self.active_tasks = {}
         self._running = False
+        self.last_error = None
 
     def set_database(self, db):
         self.db = db
@@ -61,10 +62,10 @@ class TaskExecutor:
         site_name = account.get("site_name", "")
         crawler = CRAWLER_DICT.get(site_name)
         if not crawler:
-            print(f"错误。未找到网站 [{site_name}] 对应的爬虫实例")
+            self.last_error = f"未找到网站 [{site_name}] 对应的爬虫实例"
             return
         if not crawler.base_url:
-            print(f"错误。网站 [{site_name}] 未登录")
+            self.last_error = f"网站 [{site_name}] 未登录"
             return
 
         execution_id = self.db.insert("task_execution", {
@@ -91,7 +92,7 @@ class TaskExecutor:
                 "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }, "id = :id", {"id": execution_id})
         except Exception as e:
-            print(f"错误。网站 [{site_name}] 爬取失败", e)
+            self.last_error = str(e)
             self.db.update("task_execution", {
                 "end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "status": "failed",
@@ -127,6 +128,12 @@ class TaskExecutor:
 
     def get_active_tasks(self):
         return list(self.active_tasks.keys())
+
+    def get_last_error(self):
+        return self.last_error
+
+    def clear_last_error(self):
+        self.last_error = None
 
     def _parse_cron(self, cron_expr):
         parts = cron_expr.split()
