@@ -15,6 +15,10 @@ class ValuationTab(QWidget):
     def __init__(self, db):
         super().__init__()
         self.db = db
+        self.current_page = 0
+        self.page_size = 50
+        self.total_count = 0
+        self.current_cars = []
         self.init_ui()
 
     def init_ui(self):
@@ -101,6 +105,20 @@ class ValuationTab(QWidget):
         self.car_list.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.car_list.cellClicked.connect(self.on_car_selected)
         left_layout.addWidget(self.car_list)
+
+        self.page_layout = QHBoxLayout()
+        self.page_label = QLabel("第 1 页 / 共 1 页")
+        self.page_layout.addWidget(self.page_label)
+        
+        self.prev_btn = QPushButton("上一页")
+        self.prev_btn.clicked.connect(self.prev_page)
+        self.page_layout.addWidget(self.prev_btn)
+        
+        self.next_btn = QPushButton("下一页")
+        self.next_btn.clicked.connect(self.next_page)
+        self.page_layout.addWidget(self.next_btn)
+        
+        left_layout.addLayout(self.page_layout)
 
         left_panel.setLayout(left_layout)
 
@@ -193,21 +211,32 @@ class ValuationTab(QWidget):
             params["price_max"] = float(price_max)
 
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+        self.where_sql = where_sql
+        self.search_params = params
 
-        all_cars = []
+        table = "accident_car" if car_type == "事故车" else "used_car"
+        
+        self.total_count = self.db.query_one(
+            f"SELECT COUNT(*) as cnt FROM {table} WHERE {where_sql}", params
+        )["cnt"]
 
-        if car_type == "事故车":
-            all_cars = self.db.query(
-                f"SELECT * FROM accident_car WHERE {where_sql} ORDER BY created_at DESC LIMIT 500", params
-            )
+        self.current_page = 0
+        self.load_page()
 
-        if car_type == "二手车":
-            all_cars = self.db.query(
-                f"SELECT * FROM used_car WHERE {where_sql} ORDER BY created_at DESC LIMIT 500", params
-            )
+    def load_page(self):
+        car_type = self.car_type.currentText()
+        table = "accident_car" if car_type == "事故车" else "used_car"
+        
+        params = self.search_params.copy()
+        params["limit"] = self.page_size
+        params["offset"] = self.current_page * self.page_size
+        
+        self.current_cars = self.db.query(
+            f"SELECT * FROM {table} WHERE {self.where_sql} ORDER BY created_at DESC LIMIT :limit OFFSET :offset", params
+        )
 
-        self.car_list.setRowCount(len(all_cars))
-        for i, car in enumerate(all_cars):
+        self.car_list.setRowCount(len(self.current_cars))
+        for i, car in enumerate(self.current_cars):
             self.car_list.setItem(i, 0, QTableWidgetItem(str(car.get("id", ""))))
             self.car_list.setItem(i, 1, QTableWidgetItem(car.get("che_liang_pin_pai", "")))
             self.car_list.setItem(i, 2, QTableWidgetItem(car.get("xuan_ze_zi_xi_lie", "")))
@@ -219,8 +248,24 @@ class ValuationTab(QWidget):
             self.car_list.setItem(i, 7, QTableWidgetItem(is_xny))
             self.car_list.item(i, 0).setData(Qt.UserRole, car)
 
-        if not all_cars:
+        total_pages = max(1, (self.total_count + self.page_size - 1) // self.page_size)
+        self.page_label.setText(f"第 {self.current_page + 1} 页 / 共 {total_pages} 页 (共 {self.total_count} 条)")
+        self.prev_btn.setEnabled(self.current_page > 0)
+        self.next_btn.setEnabled(self.current_page < total_pages - 1)
+
+        if not self.current_cars and self.total_count == 0:
             QMessageBox.information(self, "提示", "未找到匹配的车辆数据，请先运行爬虫任务。")
+
+    def prev_page(self):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.load_page()
+
+    def next_page(self):
+        total_pages = (self.total_count + self.page_size - 1) // self.page_size
+        if self.current_page < total_pages - 1:
+            self.current_page += 1
+            self.load_page()
 
     def on_car_selected(self, row, col):
         car_type = self.car_type.currentText()
