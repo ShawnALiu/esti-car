@@ -6,8 +6,8 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                               QTableWidgetItem, QPushButton, QLineEdit, QLabel,
                               QHeaderView, QAbstractItemView, QMessageBox, QGroupBox,
                               QDialog, QComboBox, QSpinBox, QRadioButton, QButtonGroup,
-                              QFormLayout, QTabWidget, QDateTimeEdit)
-from PyQt5.QtCore import Qt, QTimer, QDateTime
+                              QFormLayout, QTabWidget)
+from PyQt5.QtCore import Qt, QTimer
 from datetime import datetime
 
 
@@ -62,8 +62,8 @@ class TaskTab(QWidget):
         layout.addLayout(toolbar)
 
         self.task_table = QTableWidget()
-        self.task_table.setColumnCount(8)
-        self.task_table.setHorizontalHeaderLabels(["序号", "任务名", "类型", "网站", "拍卖时间", "最多数量", "操作", "编辑"])
+        self.task_table.setColumnCount(7)
+        self.task_table.setHorizontalHeaderLabels(["序号", "任务名", "类型", "网站", "最多数量", "操作", "编辑"])
         self.task_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.task_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.task_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
@@ -71,12 +71,15 @@ class TaskTab(QWidget):
         self.task_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
         self.task_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
         self.task_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents)
-        self.task_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents)
         self.task_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.task_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         layout.addWidget(self.task_table)
 
         self.load_tasks()
+
+        self.refresh_timer = QTimer()
+        self.refresh_timer.timeout.connect(self.load_tasks)
+        self.refresh_timer.start(3000)
 
     def create_active_tasks_tab(self):
         self.active_tasks_panel = QWidget()
@@ -131,23 +134,19 @@ class TaskTab(QWidget):
             type_text = "事故车爬取" if task["task_type"] == "accident" else "二手车爬取"
             self.task_table.setItem(i, 2, QTableWidgetItem(type_text))
             self.task_table.setItem(i, 3, QTableWidgetItem(task.get("account_site_name", "")))
-            self.task_table.setItem(i, 4, QTableWidgetItem(task.get("auction_time", "")))
-            self.task_table.setItem(i, 5, QTableWidgetItem(str(task["max_count"])))
+            self.task_table.setItem(i, 4, QTableWidgetItem(str(task["max_count"])))
+
+            task_id = task["id"]
+            is_running = task_id in active_task_ids
 
             btn = QPushButton("执行")
-            task_id = task["id"]
-            if task_id in active_task_ids:
-                btn.setEnabled(False)
-            else:
-                btn.clicked.connect(lambda checked, tid=task_id: self.execute_task(tid))
-            self.task_table.setCellWidget(i, 6, btn)
-
             edit_btn = QPushButton("编辑")
-            if task_id in active_task_ids:
-                edit_btn.setEnabled(False)
-            else:
-                edit_btn.clicked.connect(lambda checked, tid=task_id: self.show_edit_dialog(tid))
-            self.task_table.setCellWidget(i, 7, edit_btn)
+            btn.setEnabled(not is_running)
+            edit_btn.setEnabled(not is_running)
+            btn.clicked.connect(lambda checked, tid=task_id, b=btn, e=edit_btn: self.execute_task(tid, b, e))
+            self.task_table.setCellWidget(i, 5, btn)
+            edit_btn.clicked.connect(lambda checked, tid=task_id: self.show_edit_dialog(tid))
+            self.task_table.setCellWidget(i, 6, edit_btn)
 
         self.page_label.setText(f"第 {self.current_page + 1} 页 / 共 {(total + self.page_size - 1) // self.page_size if total else 1} 页")
 
@@ -179,9 +178,12 @@ class TaskTab(QWidget):
             status_text = "成功" if exe.get("status") == "success" else ("失败" if exe.get("status") == "failed" else "运行中")
             self.history_table.setItem(i, 5, QTableWidgetItem(status_text))
 
-    def execute_task(self, task_id):
+    def execute_task(self, task_id, btn, edit_btn):
+        if task_id in self.executor.get_active_tasks():
+            return
+        btn.setEnabled(False)
+        edit_btn.setEnabled(False)
         self.executor.execute_task(task_id)
-        self.load_tasks()
 
     def show_edit_dialog(self, task_id):
         dialog = CreateTaskDialog(self.db, self, task_id)
@@ -225,9 +227,6 @@ class CreateTaskDialog(QDialog):
             idx = self.account_combo.findData(task.get("account_id"))
             if idx >= 0:
                 self.account_combo.setCurrentIndex(idx)
-            dt = QDateTime.fromString(task.get("auction_time", ""), "yyyy-MM-dd HH:mm")
-            if dt.isValid():
-                self.auction_time_input.setDateTime(dt)
             self.max_count_spin.setValue(task.get("max_count", 100))
             if task.get("schedule_type") == "cron":
                 self.cron_radio.setChecked(True)
@@ -252,13 +251,6 @@ class CreateTaskDialog(QDialog):
         for acc in accounts:
             self.account_combo.addItem(acc["site_name"], acc["id"])
         layout.addRow("账号配置:", self.account_combo)
-
-        self.auction_time_input = QDateTimeEdit()
-        self.auction_time_input.setCalendarPopup(True)
-        self.auction_time_input.setDisplayFormat("yyyy-MM-dd HH:mm")
-        self.auction_time_input.setDateTime(QDateTime.currentDateTime())
-        self.auction_time_input.setEnabled(True)
-        layout.addRow("拍卖时间:", self.auction_time_input)
 
         self.max_count_spin = QSpinBox()
         self.max_count_spin.setRange(1, 10000)
@@ -303,7 +295,6 @@ class CreateTaskDialog(QDialog):
         task_type = self.type_combo.currentData()
         account_id = self.account_combo.currentData()
         account = self.db.query_one("SELECT site_name FROM account_config WHERE id = :id", {"id": account_id})
-        auction_time = self.auction_time_input.dateTime().toString("yyyy-MM-dd HH:mm")
         max_count = self.max_count_spin.value()
         schedule_type = "cron" if self.cron_radio.isChecked() else "manual"
         cron_expr = self.cron_input.text().strip() if self.cron_radio.isChecked() else None
@@ -313,7 +304,6 @@ class CreateTaskDialog(QDialog):
             "task_type": task_type,
             "account_id": account_id,
             "account_site_name": account.get("site_name", "") if account else "",
-            "auction_time": auction_time,
             "max_count": max_count,
             "schedule_type": schedule_type,
             "cron_expression": cron_expr,

@@ -44,12 +44,27 @@ class TaskExecutor:
         if self.db is None:
             return
 
+        if task_id in self.active_tasks:
+            return
+
+        threading.Thread(target=self._execute_task_internal, args=(task_id,), daemon=True).start()
+
+    def _execute_task_internal(self, task_id):
         task = self.db.query_one("SELECT * FROM task WHERE id = :id", {"id": task_id})
         if not task:
             return
 
         account = self.db.query_one("SELECT * FROM account_config WHERE id = :id", {"id": task["account_id"]})
         if not account:
+            return
+
+        site_name = account.get("site_name", "")
+        crawler = CRAWLER_DICT.get(site_name)
+        if not crawler:
+            print(f"错误。未找到网站 [{site_name}] 对应的爬虫实例")
+            return
+        if not crawler.base_url:
+            print(f"错误。网站 [{site_name}] 未登录")
             return
 
         execution_id = self.db.insert("task_execution", {
@@ -60,37 +75,28 @@ class TaskExecutor:
 
         self.active_tasks[task_id] = execution_id
         try:
-            site_name = account.get("site_name", "")
-            crawler = CRAWLER_DICT.get(site_name)
-            if not crawler:
-                print(f"错误。未找到网站 [{site_name}] 对应的爬虫实例")
-                return
-            
             if task["task_type"] == "accident":
                 cars = crawler.get_accident_cars(max_count=task["max_count"])
                 if cars:
-                    for car in cars:
-                        car["task_id"] = task_id
-                        car["execution_id"] = execution_id
-                    self.db.batch_insert("accident_car", cars)
+                    self.db.batch_upsert_sqlite("accident_car", cars)
                     
             elif task["task_type"] == "used":
                 cars = crawler.get_used_cars(max_count=task["max_count"])
                 if cars:
-                    for car in cars:
-                        car["task_id"] = task_id
-                        car["execution_id"] = execution_id
-                    self.db.batch_insert("used_car", cars)
+                    self.db.batch_upsert_sqlite("used_car", cars)
 
             self.db.update("task_execution", {
                 "end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "status": "success"
+                "status": "success",
+                "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }, "id = :id", {"id": execution_id})
         except Exception as e:
+            print(f"错误。网站 [{site_name}] 爬取失败", e)
             self.db.update("task_execution", {
                 "end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "status": "failed",
-                "message": str(e)
+                "message": str(e),
+                "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }, "id = :id", {"id": execution_id})
         finally:
             self.active_tasks.pop(task_id, None)

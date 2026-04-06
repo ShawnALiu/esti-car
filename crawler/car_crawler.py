@@ -16,7 +16,7 @@ class BaseCrawler:
     def login(self,  check_code_id=None, verify_code=None):
         raise NotImplementedError
 
-    def get_accident_cars(self, max_count=100):
+    def get_accident_cars(self, max_count=1000):
         raise NotImplementedError
 
     def get_used_cars(self, max_count=100):

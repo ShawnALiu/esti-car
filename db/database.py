@@ -1,12 +1,16 @@
+import copy
+import time
+
 from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.pool import QueuePool
 import os
 import threading
+from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 
 # --- 1. DDL 定义 (保持原样) ---
 account_config_ddl = """
-CREATE TABLE IF NOT EXISTS account_config (
+CREATE TABLE account_config (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     site_name TEXT NOT NULL,
     site_url TEXT NOT NULL,
@@ -17,22 +21,14 @@ CREATE TABLE IF NOT EXISTS account_config (
 )
 """
 
-settings_ddl = """
-CREATE TABLE IF NOT EXISTS settings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    key TEXT UNIQUE NOT NULL,
-    value TEXT NOT NULL
-)
-"""
 
 task_ddl = """
-CREATE TABLE IF NOT EXISTS task (
+CREATE TABLE task (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     task_type TEXT NOT NULL,
     account_id INTEGER,
     account_site_name TEXT,
-    auction_time TEXT,
     max_count INTEGER DEFAULT 1000,
     enabled INTEGER DEFAULT 0,
     schedule_type TEXT DEFAULT 'manual',
@@ -43,23 +39,21 @@ CREATE TABLE IF NOT EXISTS task (
 """
 
 task_execution_ddl = """
-CREATE TABLE IF NOT EXISTS task_execution (
+CREATE TABLE task_execution (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id INTEGER,
     start_time TEXT,
     end_time TEXT,
     status TEXT DEFAULT 'running',
     message TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 )
 """
 
 accident_car_ddl = """
-CREATE TABLE IF NOT EXISTS accident_car (
+CREATE TABLE accident_car (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id INTEGER,
-    execution_id INTEGER,
-    pai_mai_id TEXT,
     site_name TEXT,
     detail_urls TEXT,
     car_id TEXT,
@@ -95,16 +89,14 @@ CREATE TABLE IF NOT EXISTS accident_car (
     pai_pin_count INTEGER,
     wei_guan_count INTEGER,
     bid_count INTEGER,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 )
 """
 
 used_car_ddl = """
-CREATE TABLE IF NOT EXISTS used_car (
+CREATE TABLE used_car (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id INTEGER,
-    execution_id INTEGER,
-    pai_mai_id TEXT,
     site_name TEXT,
     detail_urls TEXT,
     car_id TEXT,
@@ -140,7 +132,8 @@ CREATE TABLE IF NOT EXISTS used_car (
     pai_pin_count INTEGER,
     wei_guan_count INTEGER,
     bid_count INTEGER,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 )
 """
 
@@ -201,10 +194,10 @@ class Database:
             if need_rebuild:
                 temp_tables = {
                     "account_config_temp": ["id", "site_name", "site_url", "username", "password", "created_at", "updated_at"],
-                    "task_temp": ["id", "name", "task_type", "account_id", "account_site_name", "auction_time", "max_count", "enabled", "schedule_type", "cron_expression", "created_at", "updated_at"],
+                    "task_temp": ["id", "name", "task_type", "account_id", "account_site_name", "max_count", "enabled", "schedule_type", "cron_expression", "created_at", "updated_at"],
                     "task_execution_temp": ["id", "task_id", "start_time", "end_time", "status", "message", "created_at"],
-                    "accident_car_temp": ["id", "task_id", "execution_id", "pai_mai_id", "site_name", "detail_urls", "car_id", "che_liang_pin_pai", "xuan_ze_xi_lie", "xuan_ze_zi_xi_lie", "pai_liang", "chu_chang_ri_qi", "che_pai_hao", "che_liang_zan_cun_di", "is_auction_finish", "yu_zhan_shi_jian", "attention", "chesunyuanyin", "pai_mai_hui_start_time", "pai_mai_hui_lei_xing", "zui_xin_chu_jia", "yi_kou_jia", "gu_jia_ping_ji", "wai_guan_ping_ji", "main_car", "is_new_chu_jia", "is_yi_kou_jia", "is_xian_pai", "wu_zi_ming_cheng", "che_liang_zhong_lei", "pei_jian_zhong_lei", "pai_mai_jie_shu_date", "vehicle_name", "is_xin_neng_yuan", "biao_di_type", "image_url", "pai_pin_count", "wei_guan_count", "bid_count", "created_at"],
-                    "used_car_temp": ["id", "task_id", "execution_id", "pai_mai_id", "site_name", "detail_urls", "car_id", "che_liang_pin_pai", "xuan_ze_xi_lie", "xuan_ze_zi_xi_lie", "pai_liang", "chu_chang_ri_qi", "che_pai_hao", "che_liang_zan_cun_di", "is_auction_finish", "yu_zhan_shi_jian", "attention", "chesunyuanyin", "pai_mai_hui_start_time", "pai_mai_hui_lei_xing", "zui_xin_chu_jia", "yi_kou_jia", "gu_jia_ping_ji", "wai_guan_ping_ji", "main_car", "is_new_chu_jia", "is_yi_kou_jia", "is_xian_pai", "wu_zi_ming_cheng", "che_liang_zhong_lei", "pei_jian_zhong_lei", "pai_mai_jie_shu_date", "vehicle_name", "is_xin_neng_yuan", "biao_di_type", "image_url", "pai_pin_count", "wei_guan_count", "bid_count", "created_at"],
+                    "accident_car_temp": ["id", "site_name", "detail_urls", "car_id", "che_liang_pin_pai", "xuan_ze_xi_lie", "xuan_ze_zi_xi_lie", "pai_liang", "chu_chang_ri_qi", "che_pai_hao", "che_liang_zan_cun_di", "is_auction_finish", "yu_zhan_shi_jian", "attention", "chesunyuanyin", "pai_mai_hui_start_time", "pai_mai_hui_lei_xing", "zui_xin_chu_jia", "yi_kou_jia", "gu_jia_ping_ji", "wai_guan_ping_ji", "main_car", "is_new_chu_jia", "is_yi_kou_jia", "is_xian_pai", "wu_zi_ming_cheng", "che_liang_zhong_lei", "pei_jian_zhong_lei", "pai_mai_jie_shu_date", "vehicle_name", "is_xin_neng_yuan", "biao_di_type", "image_url", "pai_pin_count", "wei_guan_count", "bid_count", "created_at"],
+                    "used_car_temp": ["id", "site_name", "detail_urls", "car_id", "che_liang_pin_pai", "xuan_ze_xi_lie", "xuan_ze_zi_xi_lie", "pai_liang", "chu_chang_ri_qi", "che_pai_hao", "che_liang_zan_cun_di", "is_auction_finish", "yu_zhan_shi_jian", "attention", "chesunyuanyin", "pai_mai_hui_start_time", "pai_mai_hui_lei_xing", "zui_xin_chu_jia", "yi_kou_jia", "gu_jia_ping_ji", "wai_guan_ping_ji", "main_car", "is_new_chu_jia", "is_yi_kou_jia", "is_xian_pai", "wu_zi_ming_cheng", "che_liang_zhong_lei", "pei_jian_zhong_lei", "pai_mai_jie_shu_date", "vehicle_name", "is_xin_neng_yuan", "biao_di_type", "image_url", "pai_pin_count", "wei_guan_count", "bid_count", "created_at"],
                 }
                 
                 for old_table, columns in temp_tables.items():
@@ -247,18 +240,6 @@ class Database:
             return None
         return dict(row._mapping)
 
-    # --- 配置读写 ---
-    def get_setting(self, key: str, default: str = "") -> str:
-        result = self.query_one("SELECT value FROM settings WHERE key = :key", {"key": key})
-        return result["value"] if result else default
-
-    def set_setting(self, key: str, value: str):
-        existing = self.query_one("SELECT id FROM settings WHERE key = :key", {"key": key})
-        if existing:
-            self.update("settings", {"value": value}, "key = :key", {"key": key})
-        else:
-            self.insert("settings", {"key": key, "value": value})
-
     # --- 1. 插入单条 ---
     def insert(self, table: str, data: Dict[str, Any]) -> int:
         if not data:
@@ -273,7 +254,6 @@ class Database:
             conn.commit()
             return result.lastrowid
 
-    # --- 2. 批量插入 (高性能) ---
     def batch_insert(self, table: str, data_list: List[Dict[str, Any]]) -> int:
         if not data_list:
             return 0
@@ -281,18 +261,85 @@ class Database:
         # 确保所有字典结构一致
         columns = data_list[0].keys()
         col_str = ", ".join(columns)
-        placeholders = ", ".join([f":{col}" for col in columns])  # SQLAlchemy 支持直接用 key 名
+        placeholders = ", ".join([f":{col}" for col in columns])
         sql = text(f"INSERT INTO {table} ({col_str}) VALUES ({placeholders})")
 
         try:
             with self.engine.connect() as conn:
-                # 直接传入字典列表，SQLAlchemy 会自动处理批量插入
                 conn.execute(sql, data_list)
                 conn.commit()
                 return len(data_list)
         except Exception as e:
             print(f"批量插入失败: {e}")
             return 0
+
+    def batch_upsert_sqlite(self, table_name: str, data_list: List[Dict[str, Any]]) -> int:
+        if not data_list:
+            return 0
+
+        # 1. 基础检查
+        if "car_id" not in data_list[0]:
+            return self._batch_insert_normal(table_name, data_list)
+
+        # 提取所有待处理的 car_id
+        target_car_ids = [d['car_id'] for d in data_list]
+
+        with self.engine.connect() as conn:
+            # 2. 【关键优化】一次性查出数据库中已存在的 car_id
+            # 使用参数化查询防止注入，且利用索引快速查找
+            placeholders = ",".join([f":cid{i}" for i in range(len(target_car_ids))])
+            params = {f"cid{i}": cid for i, cid in enumerate(target_car_ids)}
+
+            # 假设数据库表中有 'id' (主键) 和 'car_id' (唯一索引)
+            query = text(f"SELECT id, car_id FROM {table_name} WHERE car_id IN ({placeholders})")
+            result = conn.execute(query, params).fetchall()
+
+            # 构建映射: car_id -> db_id
+            existing_map = {row.car_id: row.id for row in result}
+
+            insert_data = []
+            update_data = []
+
+            # 3. 在内存中将数据分为“需插入”和“需更新”两类
+            for data in data_list:
+                cid = data.get('car_id')
+                if cid in existing_map:
+                    # --- 需更新 ---
+                    update_item = data.copy()
+                    update_item['db_id'] = existing_map[cid]  # 映射主键
+                    update_item['updated_at'] = time.strftime("%Y-%m-%d %H:%M:%S")
+                    update_data.append(update_item)
+                else:
+                    # --- 需插入 ---
+                    insert_data.append(data)
+
+            # 4. 批量执行更新 (如果存在数据)
+            if update_data:
+                # 动态构建 SET 子句，排除 car_id (作为条件) 和 db_id (主键)
+                # 注意：这里假设所有数据的字段结构一致，取第一条做模板
+                columns_to_update = [k for k in update_data[0].keys() if k not in ['car_id', 'db_id']]
+
+                set_clause = ", ".join([f"{k} = :{k}" for k in columns_to_update])
+                update_sql = text(f"UPDATE {table_name} SET {set_clause} WHERE id = :db_id")
+
+                # 批量执行
+                conn.execute(update_sql, update_data)
+
+            # 5. 批量执行插入 (如果存在新数据)
+            if insert_data:
+                # 获取列名
+                columns = list(insert_data[0].keys())
+                col_str = ", ".join(columns)
+                # 这里的 :col 会自动匹配字典中的键
+                placeholders = ", ".join([f":{col}" for col in columns])
+
+                insert_sql = text(f"INSERT INTO {table_name} ({col_str}) VALUES ({placeholders})")
+                conn.execute(insert_sql, insert_data)
+
+            # 6. 提交事务
+            conn.commit()
+
+        return len(data_list)
 
     # --- 3. 更新 ---
     def update(self, table: str, data: Dict[str, Any], condition: str, params: Optional[Dict] = None) -> bool:
@@ -354,26 +401,41 @@ class Database:
             return result
 
     def init_tables(self):
-        """使用连接池连接来执行建表语句"""
         ddl_list = [
-            account_config_ddl, settings_ddl, task_ddl, task_execution_ddl,
+            account_config_ddl, task_ddl, task_execution_ddl,
             accident_car_ddl, used_car_ddl
         ]
 
         with self.engine.connect() as conn:
             for ddl in ddl_list:
-                conn.execute(text(ddl))
+                if_exist_ddl = copy.deepcopy(ddl)
+                if_exist_ddl = if_exist_ddl.replace('CREATE TABLE', 'CREATE TABLE IF NOT EXISTS')
+                conn.execute(text(if_exist_ddl))
             conn.commit()
 
-    # --- 9. 清空所有表并重建 ---
-    def clear_all_and_rebuild(self):
+    # --- 9. 清空单个表并重建 ---
+    def rebuild_table(self, table_name: str):
+        ddl_map = {
+            "account_config": account_config_ddl,
+            "task": task_ddl,
+            "task_execution": task_execution_ddl,
+            "accident_car": accident_car_ddl,
+            "used_car": used_car_ddl
+        }
+        ddl = ddl_map.get(table_name)
+        if ddl:
+            with self.engine.connect() as conn:
+                conn.execute(text(f"DROP TABLE IF EXISTS {table_name}"))
+                conn.execute(text(ddl))
+                conn.commit()
+
+    # --- 10. 清空所有表并重建 ---
+    def rebuild_all_table(self):
         tables = ["accident_car", "used_car", "task_execution", "task", "account_config"]
-        with self.engine.connect() as conn:
-            for table in tables:
-                conn.execute(text(f"DELETE FROM {table}"))
-            conn.commit()
-        # 重建
-        self.init_tables()
+        for table in tables:
+            self.rebuild_table(table)
+
+
 
 
 # --- 4. 使用示例 ---
@@ -391,5 +453,5 @@ if __name__ == "__main__":
     print(f"插入 ID: {account_id}")
 
     # 查询测试
-    result = db.query_one("SELECT * FROM account_config WHERE id = :id", {"id": account_id})
-    print(f"查询结果: {result}")
+    _result = db.query_one("SELECT * FROM account_config WHERE id = :id", {"id": account_id})
+    print(f"查询结果: {_result}")

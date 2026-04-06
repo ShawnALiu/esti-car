@@ -89,10 +89,24 @@ class DataTab(QWidget):
         self.cleanup_panel = QWidget()
         layout = QFormLayout(self.cleanup_panel)
 
-        clear_all_btn = QPushButton("一键清理（删除所有数据）")
-        clear_all_btn.clicked.connect(self.clear_all_data)
-        clear_all_btn.setStyleSheet("background-color: #ff4444; color: white; font-weight: bold;")
-        layout.addRow("", clear_all_btn)
+        self.clear_table_combo = QComboBox()
+        self.clear_table_combo.addItem("全部", "all")
+        self.clear_table_combo.addItem("账号配置表", "account_config")
+        self.clear_table_combo.addItem("任务表", "task")
+        self.clear_table_combo.addItem("任务执行表", "task_execution")
+        self.clear_table_combo.addItem("事故车表", "accident_car")
+        self.clear_table_combo.addItem("二手车表", "used_car")
+        layout.addRow("选择清理表:", self.clear_table_combo)
+
+        clear_btn = QPushButton("一键清理")
+        clear_btn.clicked.connect(self.clear_data)
+        clear_btn.setStyleSheet("background-color: #ff4444; color: white; font-weight: bold;")
+        layout.addRow("", clear_btn)
+
+        self.result_label = QLabel("")
+        layout.addRow("清理结果:", self.result_label)
+
+        layout.addRow("", QLabel(""))
 
         self.table_combo = QComboBox()
         self.table_combo.addItem("事故车表", "accident_car")
@@ -111,19 +125,23 @@ class DataTab(QWidget):
         cleanup_btn.clicked.connect(self.cleanup_data)
         layout.addRow("", cleanup_btn)
 
-        self.result_label = QLabel("")
-        layout.addRow("清理结果:", self.result_label)
-
-
-    def clear_all_data(self):
-        reply = QMessageBox.warning(self, "确认", 
-            "确定要清空所有数据吗？此操作不可恢复！",
-            QMessageBox.Yes | QMessageBox.No)
+    def clear_data(self):
+        table = self.clear_table_combo.currentData()
+        if table == "all":
+            msg = "确定要清空所有数据吗？此操作不可恢复！"
+        else:
+            table_name = self.clear_table_combo.currentText()
+            msg = f"确定要清空 {table_name} 吗？此操作不可恢复！"
+        
+        reply = QMessageBox.warning(self, "确认", msg, QMessageBox.Yes | QMessageBox.No)
         if reply == QMessageBox.Yes:
-            self.db.clear_all_and_rebuild()
-            
-            self.result_label.setText("已清空所有数据")
-            QMessageBox.information(self, "成功", "所有数据已清空")
+            if table == "all":
+                self.db.rebuild_all_table()
+                self.result_label.setText("已清空所有数据")
+            else:
+                self.db.rebuild_table(table)
+                self.result_label.setText(f"已清空 {self.clear_table_combo.currentText()}")
+            QMessageBox.information(self, "成功", "数据清理完成")
             self.load_stats()
 
     def load_stats(self):

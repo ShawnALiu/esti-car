@@ -330,7 +330,6 @@ class BoCheCrawler(BaseCrawler):
         images = self._get_images(pai_mai_id, item.get("carID", None), item.get("imageURL", None))
         
         return {
-            "pai_mai_id": pai_mai_id,
             "site_name": self.site_name,
             "detail_urls": json.dumps(images, ensure_ascii=False),
             
