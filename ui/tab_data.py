@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                               QTableWidgetItem, QPushButton, QLineEdit, QLabel,
                               QHeaderView, QAbstractItemView, QMessageBox, QGroupBox,
-                              QComboBox, QDateEdit, QTabWidget, QFormLayout)
+                              QComboBox, QDateEdit, QTabWidget, QFormLayout, QFileDialog)
 from PyQt5.QtCore import Qt, QDate
 from datetime import datetime
 
@@ -21,13 +21,59 @@ class DataTab(QWidget):
 
         self.tab_widget = QTabWidget()
 
+        self.create_config_tab()
         self.create_stats_tab()
         self.create_cleanup_tab()
 
+        self.tab_widget.addTab(self.config_panel, "配置")
         self.tab_widget.addTab(self.stats_panel, "数据统计")
         self.tab_widget.addTab(self.cleanup_panel, "数据清理")
 
         layout.addWidget(self.tab_widget)
+
+    def create_config_tab(self):
+        self.config_panel = QWidget()
+        layout = QFormLayout(self.config_panel)
+
+        self.data_path_input = QLineEdit()
+        self.data_path_input.setReadOnly(True)
+        
+        default_path = os.path.join(os.path.expanduser("~"), "EstiCar")
+        current_path = self.db.get_setting("data_path", default_path)
+        if not current_path:
+            current_path = default_path
+        self.data_path_input.setText(current_path)
+        
+        path_layout = QHBoxLayout()
+        path_layout.addWidget(self.data_path_input)
+        
+        browse_btn = QPushButton("浏览")
+        browse_btn.clicked.connect(self.browse_data_path)
+        path_layout.addWidget(browse_btn)
+        
+        save_btn = QPushButton("保存")
+        save_btn.clicked.connect(self.save_data_path)
+        path_layout.addWidget(save_btn)
+        
+        layout.addRow("数据保存路径:", path_layout)
+
+    def browse_data_path(self):
+        path = QFileDialog.getExistingDirectory(self, "选择数据保存目录", self.data_path_input.text())
+        if path:
+            self.data_path_input.setText(path)
+
+    def save_data_path(self):
+        path = self.data_path_input.text().strip()
+        if not path:
+            QMessageBox.warning(self, "错误", "请选择数据保存路径")
+            return
+        
+        os.makedirs(path, exist_ok=True)
+        os.makedirs(os.path.join(path, "db"), exist_ok=True)
+        os.makedirs(os.path.join(path, "images"), exist_ok=True)
+        
+        self.db.set_setting("data_path", path)
+        QMessageBox.information(self, "成功", f"数据保存路径已设置为: {path}")
 
     def create_stats_tab(self):
         self.stats_panel = QWidget()
@@ -50,6 +96,11 @@ class DataTab(QWidget):
         self.cleanup_panel = QWidget()
         layout = QFormLayout(self.cleanup_panel)
 
+        clear_all_btn = QPushButton("一键清理（删除所有数据）")
+        clear_all_btn.clicked.connect(self.clear_all_data)
+        clear_all_btn.setStyleSheet("background-color: #ff4444; color: white; font-weight: bold;")
+        layout.addRow("", clear_all_btn)
+
         self.table_combo = QComboBox()
         self.table_combo.addItem("事故车表", "accident_car")
         self.table_combo.addItem("二手车表", "used_car")
@@ -69,6 +120,18 @@ class DataTab(QWidget):
 
         self.result_label = QLabel("")
         layout.addRow("清理结果:", self.result_label)
+
+
+    def clear_all_data(self):
+        reply = QMessageBox.warning(self, "确认", 
+            "确定要清空所有数据吗？此操作不可恢复！",
+            QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            self.db.clear_all_and_rebuild()
+            
+            self.result_label.setText("已清空所有数据")
+            QMessageBox.information(self, "成功", "所有数据已清空")
+            self.load_stats()
 
     def load_stats(self):
         tables = [

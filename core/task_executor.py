@@ -44,11 +44,11 @@ class TaskExecutor:
         if self.db is None:
             return
 
-        task = self.db.query_one("SELECT * FROM task WHERE id = ?", (task_id,))
+        task = self.db.query_one("SELECT * FROM task WHERE id = :id", {"id": task_id})
         if not task:
             return
 
-        account = self.db.query_one("SELECT * FROM account_config WHERE id = ?", (task["account_id"],))
+        account = self.db.query_one("SELECT * FROM account_config WHERE id = :id", {"id": task["account_id"]})
         if not account:
             return
 
@@ -85,19 +85,19 @@ class TaskExecutor:
             self.db.update("task_execution", {
                 "end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "status": "success"
-            }, "id = ?", (execution_id,))
+            }, "id = :id", {"id": execution_id})
         except Exception as e:
             self.db.update("task_execution", {
                 "end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "status": "failed",
                 "message": str(e)
-            }, "id = ?", (execution_id,))
+            }, "id = :id", {"id": execution_id})
         finally:
             self.active_tasks.pop(task_id, None)
 
     def enable_task(self, task_id):
-        self.db.update("task", {"enabled": 1, "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}, "id = ?", (task_id,))
-        task = self.db.query_one("SELECT * FROM task WHERE id = ?", (task_id,))
+        self.db.update("task", {"enabled": 1, "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}, "id = :id", {"id": task_id})
+        task = self.db.query_one("SELECT * FROM task WHERE id = :id", {"id": task_id})
         if task and task.get("schedule_type") == "cron" and task.get("cron_expression"):
             self.scheduler.add_job(
                 self.execute_task,
@@ -110,7 +110,7 @@ class TaskExecutor:
         self.start()
 
     def disable_task(self, task_id):
-        self.db.update("task", {"enabled": 0, "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}, "id = ?", (task_id,))
+        self.db.update("task", {"enabled": 0, "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}, "id = :id", {"id": task_id})
         job_id = f"task_{task_id}"
         if self.scheduler.get_job(job_id):
             self.scheduler.remove_job(job_id)

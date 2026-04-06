@@ -236,7 +236,7 @@ class AccountTab(QWidget):
             "username": username,
             "password": password,
             "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }, "id = ?", (self.selected_id,))
+        }, "id = :id", {"id": self.selected_id})
 
         self.clear_inputs()
         self.load_accounts()
@@ -250,7 +250,7 @@ class AccountTab(QWidget):
         reply = QMessageBox.question(self, "确认", "确定要删除此账号配置吗?",
                                      QMessageBox.Yes | QMessageBox.No)
         if reply == QMessageBox.Yes:
-            self.db.delete("account_config", "id = ?", (self.selected_id,))
+            self.db.delete("account_config", "id = :id", {"id": self.selected_id})
             self.clear_inputs()
             self.load_accounts()
             QMessageBox.information(self, "成功", "账号配置已删除")

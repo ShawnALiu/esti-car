@@ -109,7 +109,7 @@ class TaskTab(QWidget):
 
         self.history_table = QTableWidget()
         self.history_table.setColumnCount(6)
-        self.history_table.setHorizontalHeaderLabels(["执行ID", "任务名", "类型", "开始时间", "结束时间", "状态"])
+        self.history_table.setHorizontalHeaderLabels(["执行ID", "任务ID", "状态", "开始时间", "结束时间", "状态描述"])
         self.history_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.history_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         layout.addWidget(self.history_table)
@@ -119,8 +119,8 @@ class TaskTab(QWidget):
     def load_tasks(self):
         total = self.db.count("task")
         tasks = self.db.query(
-            "SELECT t.*, a.site_name FROM task t LEFT JOIN account_config a ON t.account_id = a.id ORDER BY t.id DESC LIMIT ? OFFSET ?",
-            (self.page_size, self.current_page * self.page_size)
+            "SELECT * FROM task ORDER BY id DESC LIMIT :limit OFFSET :offset",
+            {"limit": self.page_size, "offset": self.current_page * self.page_size}
         )
 
         self.task_table.setRowCount(len(tasks))
@@ -129,7 +129,7 @@ class TaskTab(QWidget):
             self.task_table.setItem(i, 1, QTableWidgetItem(task["name"]))
             type_text = "事故车爬取" if task["task_type"] == "accident" else "二手车爬取"
             self.task_table.setItem(i, 2, QTableWidgetItem(type_text))
-            self.task_table.setItem(i, 3, QTableWidgetItem(task.get("site_name", "")))
+            self.task_table.setItem(i, 3, QTableWidgetItem(task.get("account_site_name", "")))
             self.task_table.setItem(i, 4, QTableWidgetItem(task.get("auction_time", "")))
             self.task_table.setItem(i, 5, QTableWidgetItem(str(task["max_count"])))
 
@@ -146,7 +146,7 @@ class TaskTab(QWidget):
         active_ids = self.executor.get_active_tasks()
         self.active_table.setRowCount(len(active_ids))
         for i, task_id in enumerate(active_ids):
-            task = self.db.query_one("SELECT * FROM task WHERE id = ?", (task_id,))
+            task = self.db.query_one("SELECT * FROM task WHERE id = :id", {"id": task_id})
             exec_id = self.executor.active_tasks.get(task_id)
             if task:
                 self.active_table.setItem(i, 0, QTableWidgetItem(str(task_id)))
@@ -158,17 +158,16 @@ class TaskTab(QWidget):
 
     def load_history(self):
         executions = self.db.query(
-            "SELECT e.*, t.name, t.task_type FROM task_execution e LEFT JOIN task t ON e.task_id = t.id ORDER BY e.id DESC LIMIT 100"
+            "SELECT * FROM task_execution ORDER BY id DESC LIMIT 100"
         )
         self.history_table.setRowCount(len(executions))
         for i, exe in enumerate(executions):
             self.history_table.setItem(i, 0, QTableWidgetItem(str(exe["id"])))
-            self.history_table.setItem(i, 1, QTableWidgetItem(exe.get("name", "")))
-            type_text = "事故车爬取" if exe.get("task_type") == "accident" else "二手车爬取"
-            self.history_table.setItem(i, 2, QTableWidgetItem(type_text))
+            self.history_table.setItem(i, 1, QTableWidgetItem(exe.get("task_id", "")))
+            self.history_table.setItem(i, 2, QTableWidgetItem(exe.get("status", "")))
             self.history_table.setItem(i, 3, QTableWidgetItem(exe.get("start_time", "")))
             self.history_table.setItem(i, 4, QTableWidgetItem(exe.get("end_time", "")))
-            status_text = "成功" if exe["status"] == "success" else ("失败" if exe["status"] == "failed" else "运行中")
+            status_text = "成功" if exe.get("status") == "success" else ("失败" if exe.get("status") == "failed" else "运行中")
             self.history_table.setItem(i, 5, QTableWidgetItem(status_text))
 
     def toggle_task(self, task_id, enabled):
@@ -272,6 +271,7 @@ class CreateTaskDialog(QDialog):
 
         task_type = self.type_combo.currentData()
         account_id = self.account_combo.currentData()
+        account = self.db.query_one("SELECT site_name FROM account_config WHERE id = :id", {"id": account_id})
         auction_time = self.auction_time_input.dateTime().toString("yyyy-MM-dd HH:mm")
         max_count = self.max_count_spin.value()
         schedule_type = "cron" if self.cron_radio.isChecked() else "manual"
@@ -281,6 +281,7 @@ class CreateTaskDialog(QDialog):
             "name": name,
             "task_type": task_type,
             "account_id": account_id,
+            "account_site_name": account.get("site_name", "") if account else "",
             "auction_time": auction_time,
             "max_count": max_count,
             "enabled": 0,

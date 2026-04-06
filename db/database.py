@@ -17,33 +17,40 @@ CREATE TABLE IF NOT EXISTS account_config (
 )
 """
 
+settings_ddl = """
+CREATE TABLE IF NOT EXISTS settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key TEXT UNIQUE NOT NULL,
+    value TEXT NOT NULL
+)
+"""
+
 task_ddl = """
 CREATE TABLE IF NOT EXISTS task (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     task_type TEXT NOT NULL,
-    account_id INTEGER NOT NULL,
+    account_id INTEGER,
+    account_site_name TEXT,
     auction_time TEXT,
     max_count INTEGER DEFAULT 100,
     enabled INTEGER DEFAULT 0,
     schedule_type TEXT DEFAULT 'manual',
     cron_expression TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (account_id) REFERENCES account_config(id)
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 )
 """
 
 task_execution_ddl = """
 CREATE TABLE IF NOT EXISTS task_execution (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id INTEGER NOT NULL,
+    task_id INTEGER,
     start_time TEXT,
     end_time TEXT,
     status TEXT DEFAULT 'running',
     message TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (task_id) REFERENCES task(id)
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
 )
 """
 
@@ -88,9 +95,7 @@ CREATE TABLE IF NOT EXISTS accident_car (
     pai_pin_count INTEGER,
     wei_guan_count INTEGER,
     bid_count INTEGER,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (task_id) REFERENCES task(id),
-    FOREIGN KEY (execution_id) REFERENCES task_execution(id)
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
 )
 """
 
@@ -135,9 +140,7 @@ CREATE TABLE IF NOT EXISTS used_car (
     pai_pin_count INTEGER,
     wei_guan_count INTEGER,
     bid_count INTEGER,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (task_id) REFERENCES task(id),
-    FOREIGN KEY (execution_id) REFERENCES task_execution(id)
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
 )
 """
 
@@ -179,27 +182,59 @@ class DatabasePool:
             echo=False  # 调试时可设为 True 查看 SQL
         )
 
-        # 初始化表结构
-        self._init_tables()
-
-    def _init_tables(self):
-        """使用连接池连接来执行建表语句"""
-        ddl_list = [
-            account_config_ddl, task_ddl, task_execution_ddl,
-            accident_car_ddl, used_car_ddl
-        ]
-
-        with self.engine.connect() as conn:
-            for ddl in ddl_list:
-                conn.execute(text(ddl))
-            conn.commit()
-
 
 # --- 3. 业务数据库操作类 (接口丰富) ---
 class Database:
     def __init__(self, db_path: Optional[str] = None):
         self.pool = DatabasePool(db_path)
         self.engine = self.pool.engine
+        self.init_tables()
+        self._migrate()
+
+    def _migrate(self):
+        with self.engine.connect() as conn:
+            task_columns = [row[1] for row in conn.execute(text("PRAGMA table_info(task)")).fetchall()]
+            
+            need_rebuild = "account_site_name" not in task_columns
+            
+            if need_rebuild:
+                temp_tables = {
+                    "account_config_temp": ["id", "site_name", "site_url", "username", "password", "created_at", "updated_at"],
+                    "task_temp": ["id", "name", "task_type", "account_id", "account_site_name", "auction_time", "max_count", "enabled", "schedule_type", "cron_expression", "created_at", "updated_at"],
+                    "task_execution_temp": ["id", "task_id", "start_time", "end_time", "status", "message", "created_at"],
+                    "accident_car_temp": ["id", "task_id", "execution_id", "pai_mai_id", "site_name", "detail_urls", "car_id", "che_liang_pin_pai", "xuan_ze_xi_lie", "xuan_ze_zi_xi_lie", "pai_liang", "chu_chang_ri_qi", "che_pai_hao", "che_liang_zan_cun_di", "is_auction_finish", "yu_zhan_shi_jian", "attention", "chesunyuanyin", "pai_mai_hui_start_time", "pai_mai_hui_lei_xing", "zui_xin_chu_jia", "yi_kou_jia", "gu_jia_ping_ji", "wai_guan_ping_ji", "main_car", "is_new_chu_jia", "is_yi_kou_jia", "is_xian_pai", "wu_zi_ming_cheng", "che_liang_zhong_lei", "pei_jian_zhong_lei", "pai_mai_jie_shu_date", "vehicle_name", "is_xin_neng_yuan", "biao_di_type", "image_url", "pai_pin_count", "wei_guan_count", "bid_count", "created_at"],
+                    "used_car_temp": ["id", "task_id", "execution_id", "pai_mai_id", "site_name", "detail_urls", "car_id", "che_liang_pin_pai", "xuan_ze_xi_lie", "xuan_ze_zi_xi_lie", "pai_liang", "chu_chang_ri_qi", "che_pai_hao", "che_liang_zan_cun_di", "is_auction_finish", "yu_zhan_shi_jian", "attention", "chesunyuanyin", "pai_mai_hui_start_time", "pai_mai_hui_lei_xing", "zui_xin_chu_jia", "yi_kou_jia", "gu_jia_ping_ji", "wai_guan_ping_ji", "main_car", "is_new_chu_jia", "is_yi_kou_jia", "is_xian_pai", "wu_zi_ming_cheng", "che_liang_zhong_lei", "pei_jian_zhong_lei", "pai_mai_jie_shu_date", "vehicle_name", "is_xin_neng_yuan", "biao_di_type", "image_url", "pai_pin_count", "wei_guan_count", "bid_count", "created_at"],
+                }
+                
+                for old_table, columns in temp_tables.items():
+                    try:
+                        conn.execute(text(f"CREATE TABLE IF NOT EXISTS {old_table} ({', '.join(columns)})"))
+                    except:
+                        pass
+                
+                for old_table, new_table in [("account_config", "account_config_temp"), ("task", "task_temp"), ("task_execution", "task_execution_temp"), ("accident_car", "accident_car_temp"), ("used_car", "used_car_temp")]:
+                    try:
+                        conn.execute(text(f"INSERT INTO {new_table} SELECT * FROM {old_table}"))
+                    except:
+                        pass
+                
+                for table in ["accident_car", "used_car", "task_execution", "task", "account_config"]:
+                    conn.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                
+                conn.execute(text(account_config_ddl))
+                conn.execute(text(task_ddl))
+                conn.execute(text(task_execution_ddl))
+                conn.execute(text(accident_car_ddl))
+                conn.execute(text(used_car_ddl))
+                
+                for old_table, new_table in [("account_config_temp", "account_config"), ("task_temp", "task"), ("task_execution_temp", "task_execution"), ("accident_car_temp", "accident_car"), ("used_car_temp", "used_car")]:
+                    try:
+                        conn.execute(text(f"INSERT INTO {new_table} SELECT * FROM {old_table}"))
+                        conn.execute(text(f"DROP TABLE {old_table}"))
+                    except:
+                        pass
+            
+            conn.commit()
 
     # --- 工具方法：将字典转为 SQL 参数 ---
     def _dict_to_params(self, data: Dict[str, Any]):
@@ -210,6 +245,18 @@ class Database:
         if row is None:
             return None
         return dict(row._mapping)
+
+    # --- 配置读写 ---
+    def get_setting(self, key: str, default: str = "") -> str:
+        result = self.query_one("SELECT value FROM settings WHERE key = :key", {"key": key})
+        return result["value"] if result else default
+
+    def set_setting(self, key: str, value: str):
+        existing = self.query_one("SELECT id FROM settings WHERE key = :key", {"key": key})
+        if existing:
+            self.update("settings", {"value": value}, "key = :key", {"key": key})
+        else:
+            self.insert("settings", {"key": key, "value": value})
 
     # --- 1. 插入单条 ---
     def insert(self, table: str, data: Dict[str, Any]) -> int:
@@ -304,6 +351,28 @@ class Database:
             result = conn.execute(sql, params or {})
             conn.commit()
             return result
+
+    def init_tables(self):
+        """使用连接池连接来执行建表语句"""
+        ddl_list = [
+            account_config_ddl, settings_ddl, task_ddl, task_execution_ddl,
+            accident_car_ddl, used_car_ddl
+        ]
+
+        with self.engine.connect() as conn:
+            for ddl in ddl_list:
+                conn.execute(text(ddl))
+            conn.commit()
+
+    # --- 9. 清空所有表并重建 ---
+    def clear_all_and_rebuild(self):
+        tables = ["accident_car", "used_car", "task_execution", "task", "account_config"]
+        with self.engine.connect() as conn:
+            for table in tables:
+                conn.execute(text(f"DELETE FROM {table}"))
+            conn.commit()
+        # 重建
+        self.init_tables()
 
 
 # --- 4. 使用示例 ---
