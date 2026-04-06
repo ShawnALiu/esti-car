@@ -14,6 +14,9 @@ def main():
     app.setApplicationName("估车侠 EstiCar")
     app.setApplicationVersion("1.0.0")
 
+    icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "icon", "AE86.webp")
+    app.setWindowIcon(QIcon(icon_path))
+
     db = Database()
     executor = TaskExecutor()
 

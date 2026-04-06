@@ -63,7 +63,7 @@ class TaskTab(QWidget):
 
         self.task_table = QTableWidget()
         self.task_table.setColumnCount(8)
-        self.task_table.setHorizontalHeaderLabels(["序号", "任务名", "类型", "网站", "拍卖时间", "最多数量", "启用状态", "操作"])
+        self.task_table.setHorizontalHeaderLabels(["序号", "任务名", "类型", "网站", "拍卖时间", "最多数量", "操作", "编辑"])
         self.task_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.task_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.task_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
@@ -124,6 +124,7 @@ class TaskTab(QWidget):
         )
 
         self.task_table.setRowCount(len(tasks))
+        active_task_ids = set(self.executor.get_active_tasks())
         for i, task in enumerate(tasks):
             self.task_table.setItem(i, 0, QTableWidgetItem(str(task["id"])))
             self.task_table.setItem(i, 1, QTableWidgetItem(task["name"]))
@@ -133,12 +134,20 @@ class TaskTab(QWidget):
             self.task_table.setItem(i, 4, QTableWidgetItem(task.get("auction_time", "")))
             self.task_table.setItem(i, 5, QTableWidgetItem(str(task["max_count"])))
 
-            enabled = "是" if task["enabled"] else "否"
-            self.task_table.setItem(i, 6, QTableWidgetItem(enabled))
+            btn = QPushButton("执行")
+            task_id = task["id"]
+            if task_id in active_task_ids:
+                btn.setEnabled(False)
+            else:
+                btn.clicked.connect(lambda checked, tid=task_id: self.execute_task(tid))
+            self.task_table.setCellWidget(i, 6, btn)
 
-            btn = QPushButton("启用" if not task["enabled"] else "停用")
-            btn.clicked.connect(lambda checked, tid=task["id"], en=task["enabled"]: self.toggle_task(tid, en))
-            self.task_table.setCellWidget(i, 7, btn)
+            edit_btn = QPushButton("编辑")
+            if task_id in active_task_ids:
+                edit_btn.setEnabled(False)
+            else:
+                edit_btn.clicked.connect(lambda checked, tid=task_id: self.show_edit_dialog(tid))
+            self.task_table.setCellWidget(i, 7, edit_btn)
 
         self.page_label.setText(f"第 {self.current_page + 1} 页 / 共 {(total + self.page_size - 1) // self.page_size if total else 1} 页")
 
@@ -170,14 +179,14 @@ class TaskTab(QWidget):
             status_text = "成功" if exe.get("status") == "success" else ("失败" if exe.get("status") == "failed" else "运行中")
             self.history_table.setItem(i, 5, QTableWidgetItem(status_text))
 
-    def toggle_task(self, task_id, enabled):
-        if enabled:
-            self.executor.disable_task(task_id)
-        else:
-            self.executor.enable_task(task_id)
-            self.executor.execute_task(task_id)
-
+    def execute_task(self, task_id):
+        self.executor.execute_task(task_id)
         self.load_tasks()
+
+    def show_edit_dialog(self, task_id):
+        dialog = CreateTaskDialog(self.db, self, task_id)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_tasks()
 
     def prev_page(self):
         if self.current_page > 0:
@@ -198,12 +207,34 @@ class TaskTab(QWidget):
 
 
 class CreateTaskDialog(QDialog):
-    def __init__(self, db, parent=None):
+    def __init__(self, db, parent=None, task_id=None):
         super().__init__(parent)
         self.db = db
-        self.setWindowTitle("创建任务")
+        self.task_id = task_id
+        self.setWindowTitle("编辑任务" if task_id else "创建任务")
         self.setMinimumWidth(500)
         self.init_ui()
+        if task_id:
+            self.load_task_data()
+
+    def load_task_data(self):
+        task = self.db.query_one("SELECT * FROM task WHERE id = :id", {"id": self.task_id})
+        if task:
+            self.name_input.setText(task.get("name", ""))
+            self.type_combo.setCurrentText("事故车爬取" if task.get("task_type") == "accident" else "二手车爬取")
+            idx = self.account_combo.findData(task.get("account_id"))
+            if idx >= 0:
+                self.account_combo.setCurrentIndex(idx)
+            dt = QDateTime.fromString(task.get("auction_time", ""), "yyyy-MM-dd HH:mm")
+            if dt.isValid():
+                self.auction_time_input.setDateTime(dt)
+            self.max_count_spin.setValue(task.get("max_count", 100))
+            if task.get("schedule_type") == "cron":
+                self.cron_radio.setChecked(True)
+                self.cron_input.setText(task.get("cron_expression", ""))
+                self.cron_input.setEnabled(True)
+            else:
+                self.manual_radio.setChecked(True)
 
     def init_ui(self):
         layout = QFormLayout(self)
@@ -277,18 +308,23 @@ class CreateTaskDialog(QDialog):
         schedule_type = "cron" if self.cron_radio.isChecked() else "manual"
         cron_expr = self.cron_input.text().strip() if self.cron_radio.isChecked() else None
 
-        self.db.insert("task", {
+        task_data = {
             "name": name,
             "task_type": task_type,
             "account_id": account_id,
             "account_site_name": account.get("site_name", "") if account else "",
             "auction_time": auction_time,
             "max_count": max_count,
-            "enabled": 0,
             "schedule_type": schedule_type,
             "cron_expression": cron_expr,
-            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        })
+        }
+
+        if self.task_id:
+            self.db.update("task", task_data, "id = :id", {"id": self.task_id})
+        else:
+            task_data["enabled"] = 0
+            task_data["created_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.db.insert("task", task_data)
 
         self.accept()

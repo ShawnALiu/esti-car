@@ -39,10 +39,7 @@ class DataTab(QWidget):
         self.data_path_input.setReadOnly(True)
         
         default_path = os.path.join(os.path.expanduser("~"), "EstiCar")
-        current_path = self.db.get_setting("data_path", default_path)
-        if not current_path:
-            current_path = default_path
-        self.data_path_input.setText(current_path)
+        self.data_path_input.setText(default_path)
         
         path_layout = QHBoxLayout()
         path_layout.addWidget(self.data_path_input)
@@ -69,10 +66,6 @@ class DataTab(QWidget):
             return
         
         os.makedirs(path, exist_ok=True)
-        os.makedirs(os.path.join(path, "db"), exist_ok=True)
-        os.makedirs(os.path.join(path, "images"), exist_ok=True)
-        
-        self.db.set_setting("data_path", path)
         QMessageBox.information(self, "成功", f"数据保存路径已设置为: {path}")
 
     def create_stats_tab(self):
@@ -135,11 +128,11 @@ class DataTab(QWidget):
 
     def load_stats(self):
         tables = [
-            ("accident_car", "事故车表"),
-            ("used_car", "二手车表"),
+            ("account_config", "账号配置表"),
             ("task", "任务表"),
             ("task_execution", "任务执行表"),
-            ("account_config", "账号配置表")
+            ("accident_car", "事故车表"),
+            ("used_car", "二手车表")
         ]
 
         self.stats_table.setRowCount(len(tables))

@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS task (
     account_id INTEGER,
     account_site_name TEXT,
     auction_time TEXT,
-    max_count INTEGER DEFAULT 100,
+    max_count INTEGER DEFAULT 1000,
     enabled INTEGER DEFAULT 0,
     schedule_type TEXT DEFAULT 'manual',
     cron_expression TEXT,
@@ -163,9 +163,10 @@ class DatabasePool:
 
         # 构建数据库路径
         if db_path is None:
-            app_data = os.path.join(os.path.expanduser("~"), ".esticar")
-            os.makedirs(app_data, exist_ok=True)
-            db_path = os.path.join(app_data, "esticar.db")
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            data_dir = os.path.join(project_root, "data", "db")
+            os.makedirs(data_dir, exist_ok=True)
+            db_path = os.path.join(data_dir, "esticar.db")
 
         # --- 核心配置：连接池 ---
         # pool_size: 连接池中保持的常驻连接数
