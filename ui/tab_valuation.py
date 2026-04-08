@@ -19,6 +19,9 @@ class ValuationTab(QWidget):
         self.page_size = 50
         self.total_count = 0
         self.current_cars = []
+        self.similar_current_page = 0
+        self.similar_total_count = 0
+        self.similar_cars = []
         self.init_ui()
 
     def init_ui(self):
@@ -103,6 +106,7 @@ class ValuationTab(QWidget):
         self.car_list.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents)
         self.car_list.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents)
         self.car_list.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.car_list.setStyleSheet("QHeaderView::section { font-weight: bold; }")
         self.car_list.cellClicked.connect(self.on_car_selected)
         left_layout.addWidget(self.car_list)
 
@@ -127,40 +131,101 @@ class ValuationTab(QWidget):
         right_layout.setContentsMargins(3, 3, 3, 3)
         right_layout.setSpacing(5)
 
-        detail_group = QGroupBox("车辆详情与报价")
-        detail_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        detail_layout = QVBoxLayout()
+        detail_group = QGroupBox("车辆详情")
+        detail_group.setFixedHeight(350)
+        detail_layout = QHBoxLayout()
 
-        top_layout = QHBoxLayout()
-        top_layout.setSpacing(10)
-        self.car_image_label = QLabel()
-        self.car_image_label.setAlignment(Qt.AlignCenter)
-        self.car_image_label.setFixedSize(350, 280)
-        self.car_image_label.setStyleSheet("background-color: #f0f0f0; border: 1px solid #ccc;")
-        top_layout.addWidget(self.car_image_label)
+        self.accident_detail_widget = QWidget()
+        accident_layout = QVBoxLayout()
+        accident_layout.setContentsMargins(5, 5, 5, 5)
+        accident_label = QLabel("<b>事故车详情</b>")
+        accident_label.setStyleSheet("font-size: 12px; font-weight: bold;")
+        accident_layout.addWidget(accident_label)
+        
+        self.accident_detail_items = {}
+        common_fields = [
+            ("id", "ID"), ("che_liang_pin_pai", "品牌"), ("xuan_ze_zi_xi_lie", "车型"),
+            ("chu_chang_ri_qi", "出厂年份"), ("chesunyuanyin", "车损原因"), ("yi_kou_jia", "起拍价"),
+            ("zui_xin_chu_jia", "最新出价"), ("is_xin_neng_yuan", "是否新能源"),
+            ("pai_mai_hui_start_time", "拍卖开始时间"), ("pai_mai_jie_shu_date", "拍卖结束时间"),
+            ("gu_jia_ping_ji", "估价评级"), ("wai_guan_ping_ji", "外观评级")
+        ]
+        accident_fields = common_fields
+        for key, label in accident_fields:
+            row = QHBoxLayout()
+            row.addWidget(QLabel(f"{label}:"))
+            value_label = QLabel("-")
+            value_label.setWordWrap(True)
+            self.accident_detail_items[key] = value_label
+            row.addWidget(value_label)
+            accident_layout.addLayout(row)
+        
+        accident_layout.addStretch()
+        self.accident_detail_widget.setLayout(accident_layout)
+        detail_layout.addWidget(self.accident_detail_widget, 1)
 
-        self.detail_label = QLabel("请选择左侧车辆查看详情")
-        self.detail_label.setFont(QFont("Microsoft YaHei", 10))
-        self.detail_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        self.detail_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        top_layout.addWidget(self.detail_label)
-
-        detail_layout.addLayout(top_layout)
-
-        self.price_info = QGroupBox("参考报价")
-        price_layout = QVBoxLayout()
-        self.price_table = QTableWidget()
-        self.price_table.setColumnCount(5)
-        self.price_table.setHorizontalHeaderLabels(["来源", "品牌", "型号", "年份", "参考价"])
-        self.price_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.price_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.price_table.setMaximumHeight(150)
-        price_layout.addWidget(self.price_table)
-        self.price_info.setLayout(price_layout)
-        detail_layout.addWidget(self.price_info)
+        self.used_detail_widget = QWidget()
+        used_layout = QVBoxLayout()
+        used_layout.setContentsMargins(5, 5, 5, 5)
+        used_label = QLabel("<b>二手车详情</b>")
+        used_label.setStyleSheet("font-size: 12px; font-weight: bold;")
+        used_layout.addWidget(used_label)
+        
+        self.used_detail_items = {}
+        used_fields = common_fields
+        for key, label in used_fields:
+            row = QHBoxLayout()
+            row.addWidget(QLabel(f"{label}:"))
+            value_label = QLabel("-")
+            value_label.setWordWrap(True)
+            self.used_detail_items[key] = value_label
+            row.addWidget(value_label)
+            used_layout.addLayout(row)
+        
+        used_layout.addStretch()
+        self.used_detail_widget.setLayout(used_layout)
+        detail_layout.addWidget(self.used_detail_widget, 1)
 
         detail_group.setLayout(detail_layout)
         right_layout.addWidget(detail_group)
+
+        similar_group = QGroupBox("相似二手车参考")
+        similar_layout = QVBoxLayout()
+        self.similar_table = QTableWidget()
+        self.similar_table.setColumnCount(9)
+        self.similar_table.setHorizontalHeaderLabels(["ID", "品牌", "车型", "出厂年份", "起拍价", "最新出价", "车损原因", "估价评级", "外观评级"])
+        self.similar_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.similar_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.similar_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.similar_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.similar_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.similar_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.similar_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
+        self.similar_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
+        self.similar_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Stretch)
+        self.similar_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents)
+        self.similar_table.horizontalHeader().setSectionResizeMode(8, QHeaderView.ResizeToContents)
+        self.similar_table.setStyleSheet("QHeaderView::section { font-weight: bold; }")
+        self.similar_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.similar_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.similar_table.cellClicked.connect(self.on_similar_car_selected)
+        similar_layout.addWidget(self.similar_table)
+
+        self.similar_page_layout = QHBoxLayout()
+        self.similar_page_label = QLabel("第 1 页 / 共 1 页")
+        self.similar_page_layout.addWidget(self.similar_page_label)
+        
+        self.similar_prev_btn = QPushButton("上一页")
+        self.similar_prev_btn.clicked.connect(self.prev_similar_page)
+        self.similar_page_layout.addWidget(self.similar_prev_btn)
+        
+        self.similar_next_btn = QPushButton("下一页")
+        self.similar_next_btn.clicked.connect(self.next_similar_page)
+        self.similar_page_layout.addWidget(self.similar_next_btn)
+        
+        similar_layout.addLayout(self.similar_page_layout)
+        similar_group.setLayout(similar_layout)
+        right_layout.addWidget(similar_group)
 
         right_panel.setLayout(right_layout)
 
@@ -254,7 +319,7 @@ class ValuationTab(QWidget):
         self.next_btn.setEnabled(self.current_page < total_pages - 1)
 
         if not self.current_cars and self.total_count == 0:
-            QMessageBox.information(self, "提示", "未找到匹配的车辆数据，请先运行爬虫任务。")
+            QMessageBox.information(self, "提示",  "未找到匹配的车辆数据，请先运行爬虫任务。")
 
     def prev_page(self):
         if self.current_page > 0:
@@ -267,57 +332,146 @@ class ValuationTab(QWidget):
             self.current_page += 1
             self.load_page()
 
+    def parse_date(self, value):
+        if not value:
+            return "-"
+        if isinstance(value, str) and value.startswith("/Date("):
+            try:
+                import re
+                match = re.search(r"/Date\((\d+)\)/", value)
+                if match:
+                    import time
+                    timestamp = int(match.group(1)) / 1000
+                    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp))
+            except:
+                pass
+        return str(value)
+
     def on_car_selected(self, row, col):
-        car_type = self.car_type.currentText()
-        if car_type == "二手车":
+        if row >= len(self.current_cars):
             return
-        car = self.car_list.item(row, 0).data(Qt.UserRole)
+        car = self.current_cars[row]
         if not car:
             return
 
-        # car_type = car.get("_type", "")
-        # detail_text = f"类型: {car_type}\n"
-        # detail_text += f"品牌: {car.get('che_liang_pin_pai', '')}\n"
-        # detail_text += f"车系: {car.get('xuan_ze_xi_lie', '')}\n"
-        # detail_text += f"车型: {car.get('xuan_ze_zi_xi_lie', '')}\n"
-        # detail_text += f"年份: {car.get('chu_chang_ri_qi', '')}\n"
-        # detail_text += f"起拍价: ¥{car.get('yi_kou_jia', 0):,.2f}\n"
-        # detail_text += f"最新出价: {car.get('zui_xin_chu_jia', '')}\n"
-        # detail_text += f"拍卖时间: {car.get('pai_mai_hui_start_time', '')}\n"
-        # detail_text += f"是否新能源: {'是' if car.get('is_xin_neng_yuan') == 1 else '否'}\n"
-        # detail_text += f"网站: {car.get('site_name', '')}\n"
-        # detail_text += f"链接: {car.get('detail_urls', '')}"
-        #
-        # self.detail_label.setText(detail_text)
-        # self.detail_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        #
-        # brand = car.get("che_liang_pin_pai", "")
-        # model = car.get("xuan_ze_zi_xi_lie", "")
-        # year = car.get("chu_chang_ri_qi", 0)
-        #
-        # where_clauses = []
-        # params = {}
-        # if brand:
-        #     where_clauses.append("che_liang_pin_pai LIKE :brand")
-        #     params["brand"] = f"%{brand}%"
-        # if model:
-        #     where_clauses.append("xuan_ze_zi_xi_lie LIKE :model")
-        #     params["model"] = f"%{model}%"
-        # if year:
-        #     where_clauses.append("chu_chang_ri_qi = :year")
-        #     params["year"] = year
-        #
-        # where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
-        #
-        # table = "accident_car" if car_type == "事故车" else "used_car"
-        # similar_cars = self.db.query(
-        #     f"SELECT site_name, che_liang_pin_pai, xuan_ze_zi_xi_lie, chu_chang_ri_qi, yi_kou_jia FROM {table} WHERE {where_sql} LIMIT 20", params
-        # )
-        #
-        # self.price_table.setRowCount(len(similar_cars))
-        # for i, sc in enumerate(similar_cars):
-        #     self.price_table.setItem(i, 0, QTableWidgetItem(sc.get("site_name", "")))
-        #     self.price_table.setItem(i, 1, QTableWidgetItem(sc.get("che_liang_pin_pai", "")))
-        #     self.price_table.setItem(i, 2, QTableWidgetItem(sc.get("xuan_ze_zi_xi_lie", "")))
-        #     self.price_table.setItem(i, 3, QTableWidgetItem(str(sc.get("chu_chang_ri_qi", ""))))
-        #     self.price_table.setItem(i, 4, QTableWidgetItem(f"¥{sc.get('yi_kou_jia', 0):,.2f}"))
+        car_type = self.car_type.currentText()
+
+        if car_type == "事故车":
+            for key in self.used_detail_items:
+                self.used_detail_items[key].setText("-")
+
+            for key, label in self.accident_detail_items.items():
+                if key == "id":
+                    value = str(car.get("id", "-"))
+                elif key == "yi_kou_jia":
+                    value = f"¥{car.get('yi_kou_jia', 0):,.2f}"
+                elif key == "is_xin_neng_yuan":
+                    value = "是" if car.get("is_xin_neng_yuan") == 1 else "否"
+                elif key in ("pai_mai_hui_start_time", "pai_mai_jie_shu_date"):
+                    value = self.parse_date(car.get(key, ""))
+                else:
+                    value = str(car.get(key, "-"))
+                self.accident_detail_items[key].setText(value)
+        else:
+            for key in self.accident_detail_items:
+                self.accident_detail_items[key].setText("-")
+
+            for key, label in self.used_detail_items.items():
+                if key == "id":
+                    value = str(car.get("id", "-"))
+                elif key == "yi_kou_jia":
+                    value = f"¥{car.get('yi_kou_jia', 0):,.2f}"
+                elif key == "is_xin_neng_yuan":
+                    value = "是" if car.get("is_xin_neng_yuan") == 1 else "否"
+                elif key in ("pai_mai_hui_start_time", "pai_mai_jie_shu_date"):
+                    value = self.parse_date(car.get(key, ""))
+                else:
+                    value = str(car.get(key, "-"))
+                self.used_detail_items[key].setText(value)
+
+        brand = car.get("che_liang_pin_pai", "")
+        model = car.get("xuan_ze_zi_xi_lie", "")
+        year = car.get("chu_chang_ri_qi", 0)
+
+        if not brand:
+            self.similar_cars = []
+            self.similar_table.setRowCount(0)
+            self.similar_total_count = 0
+            self.update_similar_page_label()
+            return
+
+        self.similar_where_clauses = ["che_liang_pin_pai LIKE :brand"]
+        self.similar_params = {"brand": f"%{brand}%"}
+        if model:
+            self.similar_where_clauses.append("xuan_ze_zi_xi_lie LIKE :model")
+            self.similar_params["model"] = f"%{model}%"
+
+        self.similar_where_sql = " AND ".join(self.similar_where_clauses)
+        
+        self.similar_total_count = self.db.query_one(
+            f"SELECT COUNT(*) as cnt FROM used_car WHERE {self.similar_where_sql}", self.similar_params
+        )["cnt"]
+
+        self.similar_current_page = 0
+        self.load_similar_page()
+
+    def load_similar_page(self):
+        params = self.similar_params.copy()
+        params["limit"] = self.page_size
+        params["offset"] = self.similar_current_page * self.page_size
+        
+        self.similar_cars = self.db.query(
+            f"SELECT * FROM used_car WHERE {self.similar_where_sql} ORDER BY created_at DESC LIMIT :limit OFFSET :offset", params
+        )
+
+        self.similar_table.setRowCount(len(self.similar_cars))
+        for i, sc in enumerate(self.similar_cars):
+            self.similar_table.setItem(i, 0, QTableWidgetItem(str(sc.get("id", ""))))
+            self.similar_table.setItem(i, 1, QTableWidgetItem(sc.get("che_liang_pin_pai", "")))
+            self.similar_table.setItem(i, 2, QTableWidgetItem(sc.get("xuan_ze_zi_xi_lie", "")))
+            self.similar_table.setItem(i, 3, QTableWidgetItem(str(sc.get("chu_chang_ri_qi", ""))))
+            self.similar_table.setItem(i, 4, QTableWidgetItem(f"¥{sc.get('yi_kou_jia', 0):,.2f}"))
+            self.similar_table.setItem(i, 5, QTableWidgetItem(sc.get("zui_xin_chu_jia", "")))
+            self.similar_table.setItem(i, 6, QTableWidgetItem(sc.get("chesunyuanyin", "")))
+            self.similar_table.setItem(i, 7, QTableWidgetItem(sc.get("gu_jia_ping_ji", "")))
+            self.similar_table.setItem(i, 8, QTableWidgetItem(sc.get("wai_guan_ping_ji", "")))
+            self.similar_table.setItem(i, 7, QTableWidgetItem(sc.get("wai_guan_ping_ji", "")))
+
+        self.update_similar_page_label()
+
+    def update_similar_page_label(self):
+        total_pages = max(1, (self.similar_total_count + self.page_size - 1) // self.page_size)
+        self.similar_page_label.setText(f"第 {self.similar_current_page + 1} 页 / 共 {total_pages} 页 (共 {self.similar_total_count} 条)")
+        self.similar_prev_btn.setEnabled(self.similar_current_page > 0)
+        self.similar_next_btn.setEnabled(self.similar_current_page < total_pages - 1)
+
+    def prev_similar_page(self):
+        if self.similar_current_page > 0:
+            self.similar_current_page -= 1
+            self.load_similar_page()
+
+    def next_similar_page(self):
+        total_pages = (self.similar_total_count + self.page_size - 1) // self.page_size
+        if self.similar_current_page < total_pages - 1:
+            self.similar_current_page += 1
+            self.load_similar_page()
+
+    def on_similar_car_selected(self, row, col):
+        if row >= len(self.similar_cars):
+            return
+        car = self.similar_cars[row]
+        if not car:
+            return
+
+        for key, label in self.used_detail_items.items():
+            if key == "id":
+                value = str(car.get("id", "-"))
+            elif key == "yi_kou_jia":
+                value = f"¥{car.get('yi_kou_jia', 0):,.2f}"
+            elif key == "is_xin_neng_yuan":
+                value = "是" if car.get("is_xin_neng_yuan") == 1 else "否"
+            elif key in ("pai_mai_hui_start_time", "pai_mai_jie_shu_date"):
+                value = self.parse_date(car.get(key, ""))
+            else:
+                value = str(car.get(key, "-"))
+            self.used_detail_items[key].setText(value)
