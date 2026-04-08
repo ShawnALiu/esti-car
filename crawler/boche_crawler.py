@@ -131,27 +131,19 @@ class BoCheCrawler(BaseCrawler):
             return False
 
     def get_accident_cars(self, max_count=1000):
+        return self.get_cars(max_count, "accident")
+
+    def get_used_cars(self, max_count=1000):
+        return self.get_cars(max_count, "used")
+
+    def get_cars(self, max_count, car_type):
         all_cars = []
-        meets = self.get_auction_meet_list("accident")
+        meets = self.get_auction_meet_list(car_type)
 
         for meet in meets:
             if len(all_cars) >= max_count:
                 break
             cars = self.get_sidebar_vehicle(meet["id"])
-            for item in cars:
-                car = self._convert_car_to_db_format(meet["id"], item, "accident")
-                all_cars.append(car)
-
-        return all_cars[:max_count]
-
-    def get_used_cars(self, max_count=100):
-        all_cars = []
-        meets = self.get_auction_meet_list("used")
-
-        for meet in meets:
-            if len(all_cars) >= max_count:
-                break
-            cars = self.get_auction_cars(meet["id"])
             for item in cars:
                 car = self._convert_car_to_db_format(meet["id"], item, "used")
                 all_cars.append(car)
@@ -201,42 +193,6 @@ class BoCheCrawler(BaseCrawler):
             print(f"获取拍卖会列表失败: {e}")
         
         return auctions
-
-    def get_auction_cars(self, pai_mai_id, filters=None):
-        cars = []
-        try:
-            server_time = self._get_server_time()
-            
-            url = f"{self.base_url}/HttpService/SearchPaiMaiBiaoDiList"
-            params = {
-                "SessionID": self.session_id or "",
-                "UserID": self.user_id or "",
-                "PaiMaiID": pai_mai_id,
-                "ServerTime": f"/Date({server_time})/",
-                "UserType": self.user_type,
-                "MaiJiaZhuangTai": self.mai_jia_zhuang_tai,
-                "JiaoFeiDengJi": self.jiao_fei_deng_ji,
-                "ZiZhiZhuangTai": self.zi_zhi_zhuang_tai,
-                "deviceid": self.device_id or "",
-                "type": "all",
-                "query": json.dumps(filters or {}),
-                "specialSearch": "",
-                "orderFieldParam": ""
-            }
-            
-            response = self.session.get(url, params=params, timeout=5)
-            
-            if response.status_code == 200:
-                result = response.json()
-                if result.get("Succeed"):
-                    data = result.get("Data", {})
-                    items = data.get("list", [])
-                    for item in items:
-                        cars.append(item)
-        except Exception as e:
-            print(f"获取拍卖车辆列表失败: {e}")
-        
-        return cars
 
     def get_sidebar_vehicle(self, pai_mai_id, filters=None):
         cars = []
@@ -327,7 +283,7 @@ class BoCheCrawler(BaseCrawler):
 
     def _convert_car_to_db_format(self, pai_mai_id, item, car_type):
 
-        images = self._get_images(pai_mai_id, item.get("carID", None), item.get("imageURL", None))
+        images = self._get_images(pai_mai_id, item.get("carID", None))
         
         return {
             "site_name": self.site_name,
@@ -361,11 +317,7 @@ class BoCheCrawler(BaseCrawler):
             "pai_mai_jie_shu_date": item.get("paiMaiJieShuDate", ""),
             "vehicle_name": item.get("vehicleName", ""),
             "is_xin_neng_yuan": 1 if item.get("isXinNengYuan") else 0,
-            "biao_di_type": item.get("BiaoDiType", 0),
-            "image_url": item.get("imageURL", ""),
-            "pai_pin_count": item.get("paiPinCount", 0),
-            "wei_guan_count": item.get("weiGuanCount", 0),
-            "bid_count": item.get("bidCount", 0),
+            "biao_di_type": item.get("BiaoDiType", 0)
         }
 
     def _parse_vehicle_name(self, name):
@@ -411,7 +363,8 @@ class BoCheCrawler(BaseCrawler):
             pass
         return ""
 
-    def _get_images(self, pai_mai_id, biao_di_id, image_url):
+    def _get_images(self, pai_mai_id, biao_di_id):
+        images = []
         biao_di_info = self.get_biao_di_info(pai_mai_id, biao_di_id)
         if biao_di_info and biao_di_info['paiPinIDList']:
             pai_pin_id = biao_di_info['paiPinIDList'][0]
@@ -419,7 +372,6 @@ class BoCheCrawler(BaseCrawler):
             if header_info and header_info['SamllMiddlePicFileIDs']:
                 images = header_info['SamllMiddlePicFileIDs']
                 return images
-        images = [image_url] if image_url else []
         return images
 
 

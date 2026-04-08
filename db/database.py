@@ -85,10 +85,6 @@ CREATE TABLE accident_car (
     vehicle_name TEXT,
     is_xin_neng_yuan INTEGER,
     biao_di_type INTEGER,
-    image_url TEXT,
-    pai_pin_count INTEGER,
-    wei_guan_count INTEGER,
-    bid_count INTEGER,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 )
@@ -128,10 +124,6 @@ CREATE TABLE used_car (
     vehicle_name TEXT,
     is_xin_neng_yuan INTEGER,
     biao_di_type INTEGER,
-    image_url TEXT,
-    pai_pin_count INTEGER,
-    wei_guan_count INTEGER,
-    bid_count INTEGER,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 )
@@ -196,8 +188,8 @@ class Database:
                     "account_config_temp": ["id", "site_name", "site_url", "username", "password", "created_at", "updated_at"],
                     "task_temp": ["id", "name", "task_type", "account_id", "account_site_name", "max_count", "enabled", "schedule_type", "cron_expression", "created_at", "updated_at"],
                     "task_execution_temp": ["id", "task_id", "start_time", "end_time", "status", "message", "created_at"],
-                    "accident_car_temp": ["id", "site_name", "detail_urls", "car_id", "che_liang_pin_pai", "xuan_ze_xi_lie", "xuan_ze_zi_xi_lie", "pai_liang", "chu_chang_ri_qi", "che_pai_hao", "che_liang_zan_cun_di", "is_auction_finish", "yu_zhan_shi_jian", "attention", "chesunyuanyin", "pai_mai_hui_start_time", "pai_mai_hui_lei_xing", "zui_xin_chu_jia", "yi_kou_jia", "gu_jia_ping_ji", "wai_guan_ping_ji", "main_car", "is_new_chu_jia", "is_yi_kou_jia", "is_xian_pai", "wu_zi_ming_cheng", "che_liang_zhong_lei", "pei_jian_zhong_lei", "pai_mai_jie_shu_date", "vehicle_name", "is_xin_neng_yuan", "biao_di_type", "image_url", "pai_pin_count", "wei_guan_count", "bid_count", "created_at"],
-                    "used_car_temp": ["id", "site_name", "detail_urls", "car_id", "che_liang_pin_pai", "xuan_ze_xi_lie", "xuan_ze_zi_xi_lie", "pai_liang", "chu_chang_ri_qi", "che_pai_hao", "che_liang_zan_cun_di", "is_auction_finish", "yu_zhan_shi_jian", "attention", "chesunyuanyin", "pai_mai_hui_start_time", "pai_mai_hui_lei_xing", "zui_xin_chu_jia", "yi_kou_jia", "gu_jia_ping_ji", "wai_guan_ping_ji", "main_car", "is_new_chu_jia", "is_yi_kou_jia", "is_xian_pai", "wu_zi_ming_cheng", "che_liang_zhong_lei", "pei_jian_zhong_lei", "pai_mai_jie_shu_date", "vehicle_name", "is_xin_neng_yuan", "biao_di_type", "image_url", "pai_pin_count", "wei_guan_count", "bid_count", "created_at"],
+                    "accident_car_temp": ["id", "site_name", "detail_urls", "car_id", "che_liang_pin_pai", "xuan_ze_xi_lie", "xuan_ze_zi_xi_lie", "pai_liang", "chu_chang_ri_qi", "che_pai_hao", "che_liang_zan_cun_di", "is_auction_finish", "yu_zhan_shi_jian", "attention", "chesunyuanyin", "pai_mai_hui_start_time", "pai_mai_hui_lei_xing", "zui_xin_chu_jia", "yi_kou_jia", "gu_jia_ping_ji", "wai_guan_ping_ji", "main_car", "is_new_chu_jia", "is_yi_kou_jia", "is_xian_pai", "wu_zi_ming_cheng", "che_liang_zhong_lei", "pei_jian_zhong_lei", "pai_mai_jie_shu_date", "vehicle_name", "is_xin_neng_yuan", "biao_di_type", "created_at"],
+                    "used_car_temp": ["id", "site_name", "detail_urls", "car_id", "che_liang_pin_pai", "xuan_ze_xi_lie", "xuan_ze_zi_xi_lie", "pai_liang", "chu_chang_ri_qi", "che_pai_hao", "che_liang_zan_cun_di", "is_auction_finish", "yu_zhan_shi_jian", "attention", "chesunyuanyin", "pai_mai_hui_start_time", "pai_mai_hui_lei_xing", "zui_xin_chu_jia", "yi_kou_jia", "gu_jia_ping_ji", "wai_guan_ping_ji", "main_car", "is_new_chu_jia", "is_yi_kou_jia", "is_xian_pai", "wu_zi_ming_cheng", "che_liang_zhong_lei", "pei_jian_zhong_lei", "pai_mai_jie_shu_date", "vehicle_name", "is_xin_neng_yuan", "biao_di_type", "created_at"],
                 }
                 
                 for old_table, columns in temp_tables.items():
