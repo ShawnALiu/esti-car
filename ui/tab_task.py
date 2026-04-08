@@ -62,8 +62,8 @@ class TaskTab(QWidget):
         layout.addLayout(toolbar)
 
         self.task_table = QTableWidget()
-        self.task_table.setColumnCount(7)
-        self.task_table.setHorizontalHeaderLabels(["序号", "任务名", "类型", "网站", "最多数量", "操作", "编辑"])
+        self.task_table.setColumnCount(9)
+        self.task_table.setHorizontalHeaderLabels(["序号", "任务名", "类型", "网站", "最多数量", "是否启用", "状态切换", "操作", "编辑"])
         self.task_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.task_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.task_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
@@ -71,6 +71,8 @@ class TaskTab(QWidget):
         self.task_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
         self.task_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
         self.task_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        self.task_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents)
+        self.task_table.horizontalHeader().setSectionResizeMode(8, QHeaderView.ResizeToContents)
         self.task_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.task_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         layout.addWidget(self.task_table)
@@ -136,19 +138,39 @@ class TaskTab(QWidget):
             self.task_table.setItem(i, 3, QTableWidgetItem(task.get("account_site_name", "")))
             self.task_table.setItem(i, 4, QTableWidgetItem(str(task["max_count"])))
 
+            enabled_text = "是" if task.get("enabled") == 1 else "否"
+            self.task_table.setItem(i, 5, QTableWidgetItem(enabled_text))
+
             task_id = task["id"]
             is_running = task_id in active_task_ids
+            schedule_type = task.get("schedule_type", "manual")
+            is_manual = schedule_type == "manual"
+
+            enabled = task.get("enabled") == 1
+            toggle_btn = QPushButton("停用" if enabled else "启用")
+            if is_manual or is_running:
+                toggle_btn.setEnabled(False)
+            else:
+                toggle_btn.clicked.connect(lambda checked, tid=task_id: self.toggle_task_enabled(tid))
+            self.task_table.setCellWidget(i, 6, toggle_btn)
 
             btn = QPushButton("执行")
             edit_btn = QPushButton("编辑")
             btn.setEnabled(not is_running)
             edit_btn.setEnabled(not is_running)
             btn.clicked.connect(lambda checked, tid=task_id, b=btn, e=edit_btn: self.execute_task(tid, b, e))
-            self.task_table.setCellWidget(i, 5, btn)
+            self.task_table.setCellWidget(i, 7, btn)
             edit_btn.clicked.connect(lambda checked, tid=task_id: self.show_edit_dialog(tid))
-            self.task_table.setCellWidget(i, 6, edit_btn)
+            self.task_table.setCellWidget(i, 8, edit_btn)
 
         self.page_label.setText(f"第 {self.current_page + 1} 页 / 共 {(total + self.page_size - 1) // self.page_size if total else 1} 页")
+
+    def toggle_task_enabled(self, task_id):
+        task = self.db.query_one("SELECT enabled FROM task WHERE id = :id", {"id": task_id})
+        if task:
+            new_enabled = 0 if task["enabled"] == 1 else 1
+            self.db.update("task", {"enabled": new_enabled, "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}, "id = :id", {"id": task_id})
+            self.load_tasks()
 
     def load_active_tasks(self):
         active_ids = self.executor.get_active_tasks()
@@ -247,10 +269,12 @@ class CreateTaskDialog(QDialog):
             self.max_count_spin.setValue(task.get("max_count", 100))
             if task.get("schedule_type") == "cron":
                 self.cron_radio.setChecked(True)
-                self.cron_input.setText(task.get("cron_expression", ""))
-                self.cron_input.setEnabled(True)
+                self.interval_spin.setValue(int(task.get("cron_expression", 3)))
+                self.interval_spin.setEnabled(True)
             else:
                 self.manual_radio.setChecked(True)
+            self.enabled_combo.setCurrentText("是" if task.get("enabled") == 1 else "否")
+            self.on_schedule_type_changed()
 
     def init_ui(self):
         layout = QFormLayout(self)
@@ -280,17 +304,26 @@ class CreateTaskDialog(QDialog):
         self.schedule_group.addButton(self.manual_radio)
         self.schedule_group.addButton(self.cron_radio)
         self.manual_radio.setChecked(True)
+        self.manual_radio.toggled.connect(self.on_schedule_type_changed)
 
         schedule_layout = QHBoxLayout()
         schedule_layout.addWidget(self.manual_radio)
         schedule_layout.addWidget(self.cron_radio)
         layout.addRow("执行方式:", schedule_layout)
 
-        self.cron_input = QLineEdit()
-        self.cron_input.setPlaceholderText("分 时 日 月 周 (如: 0 9 * * 1-5)")
-        self.cron_input.setEnabled(False)
-        self.cron_radio.toggled.connect(self.cron_input.setEnabled)
-        layout.addRow("Cron表达式:", self.cron_input)
+        self.enabled_combo = QComboBox()
+        self.enabled_combo.addItem("是", 1)
+        self.enabled_combo.addItem("否", 0)
+        self.enabled_combo.setCurrentIndex(0)
+        layout.addRow("是否启用:", self.enabled_combo)
+
+        self.interval_spin = QSpinBox()
+        self.interval_spin.setRange(1, 1440)
+        self.interval_spin.setValue(3)
+        self.interval_spin.setSuffix(" 分钟")
+        self.interval_spin.setEnabled(False)
+        self.cron_radio.toggled.connect(self.interval_spin.setEnabled)
+        layout.addRow("执行间隔:", self.interval_spin)
 
         btn_layout = QHBoxLayout()
         save_btn = QPushButton("保存")
@@ -303,6 +336,12 @@ class CreateTaskDialog(QDialog):
 
         layout.addRow(btn_layout)
 
+    def on_schedule_type_changed(self):
+        is_manual = self.manual_radio.isChecked()
+        self.enabled_combo.setEnabled(not is_manual)
+        if is_manual:
+            self.enabled_combo.setCurrentIndex(0)
+
     def save_task(self):
         name = self.name_input.text().strip()
         if not name:
@@ -314,7 +353,8 @@ class CreateTaskDialog(QDialog):
         account = self.db.query_one("SELECT site_name FROM account_config WHERE id = :id", {"id": account_id})
         max_count = self.max_count_spin.value()
         schedule_type = "cron" if self.cron_radio.isChecked() else "manual"
-        cron_expr = self.cron_input.text().strip() if self.cron_radio.isChecked() else None
+        interval = str(self.interval_spin.value()) if self.cron_radio.isChecked() else None
+        enabled = self.enabled_combo.currentData()
 
         task_data = {
             "name": name,
@@ -323,14 +363,14 @@ class CreateTaskDialog(QDialog):
             "account_site_name": account.get("site_name", "") if account else "",
             "max_count": max_count,
             "schedule_type": schedule_type,
-            "cron_expression": cron_expr,
+            "cron_expression": interval,
+            "enabled": enabled,
             "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
 
         if self.task_id:
             self.db.update("task", task_data, "id = :id", {"id": self.task_id})
         else:
-            task_data["enabled"] = 0
             task_data["created_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self.db.insert("task", task_data)
 
