@@ -170,12 +170,13 @@ class ValuationTab(QWidget):
 
         accident_image_layout = QVBoxLayout()
         self.accident_main_image = QLabel()
-        self.accident_main_image.setAlignment(Qt.AlignCenter)
+        self.accident_main_image.setAlignment(Qt.AlignLeft)
         self.accident_main_image.setFixedSize(250, 150)
+        self.accident_main_image.setScaledContents(True)
         self.accident_main_image.setStyleSheet("background-color: #f0f0f0; border: 1px solid #ccc;")
 
         self.accident_thumb_scroll = QScrollArea()
-        self.accident_thumb_scroll.setFixedWidth(80)
+        self.accident_thumb_scroll.setFixedWidth(100)
         self.accident_thumb_scroll.setFixedHeight(150)
         self.accident_thumb_scroll.setWidgetResizable(True)
         self.accident_thumb_widget = QWidget()
@@ -242,12 +243,13 @@ class ValuationTab(QWidget):
 
         used_image_layout = QVBoxLayout()
         self.used_main_image = QLabel()
-        self.used_main_image.setAlignment(Qt.AlignCenter)
+        self.used_main_image.setAlignment(Qt.AlignLeft)
         self.used_main_image.setFixedSize(250, 150)
+        self.used_main_image.setScaledContents(True)
         self.used_main_image.setStyleSheet("background-color: #f0f0f0; border: 1px solid #ccc;")
 
         self.used_thumb_scroll = QScrollArea()
-        self.used_thumb_scroll.setFixedWidth(80)
+        self.used_thumb_scroll.setFixedWidth(100)
         self.used_thumb_scroll.setFixedHeight(150)
         self.used_thumb_scroll.setWidgetResizable(True)
         self.used_thumb_widget = QWidget()
