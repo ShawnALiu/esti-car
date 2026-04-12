@@ -3,6 +3,8 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
+import requests
+
 from core import config
 from crawler import CRAWLER_DICT
 
@@ -27,6 +29,13 @@ class TaskExecutor:
         self.image_pool = ThreadPoolExecutor(max_workers=10)
         self.active_tasks = {}
         self.last_error = None
+
+
+        self.download_session = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(max_retries=1)
+        self.download_session.mount('http://', adapter)
+        self.download_session.mount('https://', adapter)
+
 
     def execute_task(self, task_id):
         if self.db is None:
@@ -95,10 +104,10 @@ class TaskExecutor:
             return
         for car in cars:
             car_id = car.get("car_id")
-            images = car.get("detail_urls")
-            if not images or not car_id:
+            images_json = car.get("detail_urls")
+            if not images_json or not car_id:
                 continue
-            self.image_pool.submit(self._download_single_car_images, car_id, images)
+            self.image_pool.submit(self._download_single_car_images, car_id, images_json)
 
     def _download_single_car_images(self, car_id, images):
         import json
@@ -124,13 +133,20 @@ class TaskExecutor:
                 continue
 
             try:
-                import requests
-                resp = requests.get(middle_file_id, timeout=3)
-                if resp.status_code == 200:
-                    with open(file_path, "wb") as f:
-                        f.write(resp.content)
+                # 使用 Session 发送请求
+                # stream=True 表示流式下载，不一次性加载到内存
+                with self.download_session.get(middle_file_id, timeout=5, stream=True) as resp:
+                    if resp.status_code == 200:
+                        # 直接写入文件
+                        with open(file_path, "wb") as f:
+                            for chunk in resp.iter_content(chunk_size=8192):
+                                f.write(chunk)
+                    else:
+                        print(f"下载失败 (状态码 {resp.status_code}): {middle_file_id}")
             except Exception as e:
-                print(f"下载图片失败: {middle_file_id}, error: {e}")
+                # 避免打印过多异常影响性能
+                # print(f"下载异常: {e}")
+                pass
 
     def is_task_running(self, task_id):
         return task_id in self.active_tasks

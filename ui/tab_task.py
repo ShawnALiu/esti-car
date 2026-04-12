@@ -62,8 +62,8 @@ class TaskTab(QWidget):
         layout.addLayout(toolbar)
 
         self.task_table = QTableWidget()
-        self.task_table.setColumnCount(10)
-        self.task_table.setHorizontalHeaderLabels(["序号", "任务名", "类型", "网站", "最多数量", "执行方式", "是否启用", "状态切换", "操作", "编辑"])
+        self.task_table.setColumnCount(11)
+        self.task_table.setHorizontalHeaderLabels(["序号", "任务名", "类型", "网站", "最多数量", "执行方式", "执行间隔", "是否启用", "状态切换", "操作", "编辑"])
         self.task_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.task_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.task_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
@@ -74,6 +74,7 @@ class TaskTab(QWidget):
         self.task_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents)
         self.task_table.horizontalHeader().setSectionResizeMode(8, QHeaderView.ResizeToContents)
         self.task_table.horizontalHeader().setSectionResizeMode(9, QHeaderView.ResizeToContents)
+        self.task_table.horizontalHeader().setSectionResizeMode(10, QHeaderView.ResizeToContents)
         self.task_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.task_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         layout.addWidget(self.task_table)
@@ -143,8 +144,12 @@ class TaskTab(QWidget):
             schedule_text = "手动执行" if schedule_type == "manual" else "定时执行"
             self.task_table.setItem(i, 5, QTableWidgetItem(schedule_text))
 
+            interval = task.get("cron_expression", "3")
+            interval_text = "-" if schedule_type == "manual" else f"{interval}分钟"
+            self.task_table.setItem(i, 6, QTableWidgetItem(interval_text))
+
             enabled_text = "是" if task.get("enabled") == 1 else "否"
-            self.task_table.setItem(i, 6, QTableWidgetItem(enabled_text))
+            self.task_table.setItem(i, 7, QTableWidgetItem(enabled_text))
 
             task_id = task["id"]
             is_running = task_id in active_task_ids
@@ -156,16 +161,16 @@ class TaskTab(QWidget):
                 toggle_btn.setEnabled(False)
             else:
                 toggle_btn.clicked.connect(lambda checked, tid=task_id: self.toggle_task_enabled(tid))
-            self.task_table.setCellWidget(i, 7, toggle_btn)
+            self.task_table.setCellWidget(i, 8, toggle_btn)
 
             btn = QPushButton("执行")
             edit_btn = QPushButton("编辑")
             btn.setEnabled(not is_running)
             edit_btn.setEnabled(not is_running)
             btn.clicked.connect(lambda checked, tid=task_id, b=btn, e=edit_btn: self.execute_task(tid, b, e))
-            self.task_table.setCellWidget(i, 8, btn)
+            self.task_table.setCellWidget(i, 9, btn)
             edit_btn.clicked.connect(lambda checked, tid=task_id: self.show_edit_dialog(tid))
-            self.task_table.setCellWidget(i, 9, edit_btn)
+            self.task_table.setCellWidget(i, 10, edit_btn)
 
         self.page_label.setText(f"第 {self.current_page + 1} 页 / 共 {(total + self.page_size - 1) // self.page_size if total else 1} 页")
 

@@ -269,13 +269,8 @@ class Database:
         if not data_list:
             return 0
 
-        # 1. 基础检查
-        if "car_id" not in data_list[0]:
-            return self._batch_insert_normal(table_name, data_list)
-
         # 提取所有待处理的 car_id
         target_car_ids = [d['car_id'] for d in data_list]
-
         with self.engine.connect() as conn:
             # 2. 【关键优化】一次性查出数据库中已存在的 car_id
             # 使用参数化查询防止注入，且利用索引快速查找
@@ -309,7 +304,7 @@ class Database:
             if update_data:
                 # 动态构建 SET 子句，排除 car_id (作为条件) 和 db_id (主键)
                 # 注意：这里假设所有数据的字段结构一致，取第一条做模板
-                columns_to_update = [k for k in update_data[0].keys() if k not in ['car_id', 'db_id']]
+                columns_to_update = [k for k in update_data[0].keys() if k not in ['car_id', 'db_id', 'detail_urls']]
 
                 set_clause = ", ".join([f"{k} = :{k}" for k in columns_to_update])
                 update_sql = text(f"UPDATE {table_name} SET {set_clause} WHERE id = :db_id")
