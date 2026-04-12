@@ -148,7 +148,7 @@ class ValuationTab(QWidget):
 
         self.accident_detail_items = {}
         common_fields = [
-            ("主键id", "ID"), ("che_liang_pin_pai", "品牌"), ("xuan_ze_zi_xi_lie", "车型"),
+            ("id", "ID"), ("che_liang_pin_pai", "品牌"), ("xuan_ze_zi_xi_lie", "车型"),
             ("chu_chang_ri_qi", "出厂年份"), ("chesunyuanyin", "车损原因"), ("yi_kou_jia", "起拍价"),
             ("zui_xin_chu_jia", "最新出价"), ("is_xin_neng_yuan", "是否新能源"),
             ("gu_jia_ping_ji", "估价评级"), ("wai_guan_ping_ji", "外观评级"),
@@ -220,7 +220,7 @@ class ValuationTab(QWidget):
 
         self.used_detail_items = {}
         used_fields = [
-            ("主键id", "ID"), ("che_liang_pin_pai", "品牌"), ("xuan_ze_zi_xi_lie", "车型"),
+            ("id", "ID"), ("che_liang_pin_pai", "品牌"), ("xuan_ze_zi_xi_lie", "车型"),
             ("chu_chang_ri_qi", "出厂年份"), ("chesunyuanyin", "车损原因"), ("yi_kou_jia", "起拍价"),
             ("zui_xin_chu_jia", "最新出价"), ("is_xin_neng_yuan", "是否新能源"),
             ("gu_jia_ping_ji", "估价评级"), ("wai_guan_ping_ji", "外观评级"),
