@@ -17,13 +17,12 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.db = db
         self.executor = executor
-        self.executor.set_database(db)
         self.init_ui()
 
     def init_ui(self):
         self.setWindowTitle("估车侠 EstiCar")
-        self.setMinimumSize(1200, 800)
-        self.resize(1400, 900)
+        self.setMinimumSize(1800, 900)
+        self.resize(1800, 1000)
 
         central = QWidget()
         self.setCentralWidget(central)

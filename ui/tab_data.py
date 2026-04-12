@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
                               QComboBox, QDateEdit, QTabWidget, QFormLayout, QFileDialog)
 from PyQt5.QtCore import Qt, QDate
 from datetime import datetime
+from core.config import set_data_path
 
 
 class DataTab(QWidget):
@@ -66,6 +67,7 @@ class DataTab(QWidget):
             return
         
         os.makedirs(path, exist_ok=True)
+        set_data_path(path)
         QMessageBox.information(self, "成功", f"数据保存路径已设置为: {path}")
 
     def create_stats_tab(self):

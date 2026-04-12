@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QPixmap
 import json
+from core import config
 
 
 class ValuationTab(QWidget):
@@ -132,59 +133,152 @@ class ValuationTab(QWidget):
         right_layout.setSpacing(5)
 
         detail_group = QGroupBox("车辆详情")
-        detail_group.setFixedHeight(350)
+        detail_group.setMinimumHeight(400)
         detail_layout = QHBoxLayout()
 
         self.accident_detail_widget = QWidget()
-        accident_layout = QVBoxLayout()
-        accident_layout.setContentsMargins(5, 5, 5, 5)
+        accident_main_layout = QVBoxLayout()
+        accident_main_layout.setContentsMargins(5, 5, 5, 5)
+
+        accident_info_layout = QVBoxLayout()
+        accident_info_layout.setSpacing(5)
         accident_label = QLabel("<b>事故车详情</b>")
-        accident_label.setStyleSheet("font-size: 12px; font-weight: bold;")
-        accident_layout.addWidget(accident_label)
-        
+        accident_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        accident_info_layout.addWidget(accident_label)
+
         self.accident_detail_items = {}
         common_fields = [
-            ("id", "ID"), ("che_liang_pin_pai", "品牌"), ("xuan_ze_zi_xi_lie", "车型"),
+            ("主键id", "ID"), ("che_liang_pin_pai", "品牌"), ("xuan_ze_zi_xi_lie", "车型"),
             ("chu_chang_ri_qi", "出厂年份"), ("chesunyuanyin", "车损原因"), ("yi_kou_jia", "起拍价"),
             ("zui_xin_chu_jia", "最新出价"), ("is_xin_neng_yuan", "是否新能源"),
-            ("pai_mai_hui_start_time", "拍卖开始时间"), ("pai_mai_jie_shu_date", "拍卖结束时间"),
-            ("gu_jia_ping_ji", "估价评级"), ("wai_guan_ping_ji", "外观评级")
+            ("gu_jia_ping_ji", "估价评级"), ("wai_guan_ping_ji", "外观评级"),
+            ("pai_mai_hui_start_time", "拍卖开始时间"), ("pai_mai_jie_shu_date", "拍卖结束时间")
         ]
-        accident_fields = common_fields
-        for key, label in accident_fields:
+        for key, label in common_fields:
             row = QHBoxLayout()
-            row.addWidget(QLabel(f"{label}:"))
+            label_widget = QLabel(f"{label}:")
+            label_widget.setFixedWidth(100)
+            label_widget.setAlignment(Qt.AlignTop)
+            row.addWidget(label_widget)
             value_label = QLabel("-")
             value_label.setWordWrap(True)
+            value_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            value_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
             self.accident_detail_items[key] = value_label
             row.addWidget(value_label)
-            accident_layout.addLayout(row)
-        
-        accident_layout.addStretch()
-        self.accident_detail_widget.setLayout(accident_layout)
-        detail_layout.addWidget(self.accident_detail_widget, 1)
+            accident_info_layout.addLayout(row)
+
+        accident_image_layout = QVBoxLayout()
+        self.accident_main_image = QLabel()
+        self.accident_main_image.setAlignment(Qt.AlignCenter)
+        self.accident_main_image.setFixedSize(250, 150)
+        self.accident_main_image.setStyleSheet("background-color: #f0f0f0; border: 1px solid #ccc;")
+
+        self.accident_thumb_scroll = QScrollArea()
+        self.accident_thumb_scroll.setFixedWidth(80)
+        self.accident_thumb_scroll.setFixedHeight(150)
+        self.accident_thumb_scroll.setWidgetResizable(True)
+        self.accident_thumb_widget = QWidget()
+        self.accident_thumb_layout = QVBoxLayout()
+        self.accident_thumb_layout.setSpacing(5)
+        self.accident_thumb_widget.setLayout(self.accident_thumb_layout)
+        self.accident_thumb_scroll.setWidget(self.accident_thumb_widget)
+
+        image_top_layout = QHBoxLayout()
+        image_top_layout.addWidget(self.accident_main_image)
+        image_top_layout.addWidget(self.accident_thumb_scroll)
+
+        car_id_label = QLabel("车辆ID:")
+        car_id_label.setFixedWidth(60)
+        self.accident_car_id_label = QLabel("-")
+        self.accident_car_id_label.setWordWrap(True)
+        self.accident_car_id_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.accident_car_id_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.accident_detail_items["car_id"] = self.accident_car_id_label
+
+        car_id_layout = QHBoxLayout()
+        car_id_layout.addWidget(car_id_label)
+        car_id_layout.addWidget(self.accident_car_id_label)
+
+        accident_image_layout.addLayout(image_top_layout)
+        accident_image_layout.addLayout(car_id_layout)
+
+        accident_main_layout.addLayout(accident_info_layout)
+        accident_main_layout.addLayout(accident_image_layout)
+        self.accident_detail_widget.setLayout(accident_main_layout)
+        detail_layout.addWidget(self.accident_detail_widget)
 
         self.used_detail_widget = QWidget()
-        used_layout = QVBoxLayout()
-        used_layout.setContentsMargins(5, 5, 5, 5)
+        used_main_layout = QVBoxLayout()
+        used_main_layout.setContentsMargins(5, 5, 5, 5)
+
+        used_info_layout = QVBoxLayout()
+        used_info_layout.setSpacing(5)
         used_label = QLabel("<b>二手车详情</b>")
-        used_label.setStyleSheet("font-size: 12px; font-weight: bold;")
-        used_layout.addWidget(used_label)
-        
+        used_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        used_info_layout.addWidget(used_label)
+
         self.used_detail_items = {}
-        used_fields = common_fields
+        used_fields = [
+            ("主键id", "ID"), ("che_liang_pin_pai", "品牌"), ("xuan_ze_zi_xi_lie", "车型"),
+            ("chu_chang_ri_qi", "出厂年份"), ("chesunyuanyin", "车损原因"), ("yi_kou_jia", "起拍价"),
+            ("zui_xin_chu_jia", "最新出价"), ("is_xin_neng_yuan", "是否新能源"),
+            ("gu_jia_ping_ji", "估价评级"), ("wai_guan_ping_ji", "外观评级"),
+            ("pai_mai_hui_start_time", "拍卖开始时间"), ("pai_mai_jie_shu_date", "拍卖结束时间")
+        ]
         for key, label in used_fields:
             row = QHBoxLayout()
-            row.addWidget(QLabel(f"{label}:"))
+            label_widget = QLabel(f"{label}:")
+            label_widget.setFixedWidth(100)
+            label_widget.setAlignment(Qt.AlignTop)
+            row.addWidget(label_widget)
             value_label = QLabel("-")
             value_label.setWordWrap(True)
+            value_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            value_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
             self.used_detail_items[key] = value_label
             row.addWidget(value_label)
-            used_layout.addLayout(row)
-        
-        used_layout.addStretch()
-        self.used_detail_widget.setLayout(used_layout)
-        detail_layout.addWidget(self.used_detail_widget, 1)
+            used_info_layout.addLayout(row)
+
+        used_image_layout = QVBoxLayout()
+        self.used_main_image = QLabel()
+        self.used_main_image.setAlignment(Qt.AlignCenter)
+        self.used_main_image.setFixedSize(250, 150)
+        self.used_main_image.setStyleSheet("background-color: #f0f0f0; border: 1px solid #ccc;")
+
+        self.used_thumb_scroll = QScrollArea()
+        self.used_thumb_scroll.setFixedWidth(80)
+        self.used_thumb_scroll.setFixedHeight(150)
+        self.used_thumb_scroll.setWidgetResizable(True)
+        self.used_thumb_widget = QWidget()
+        self.used_thumb_layout = QVBoxLayout()
+        self.used_thumb_layout.setSpacing(5)
+        self.used_thumb_widget.setLayout(self.used_thumb_layout)
+        self.used_thumb_scroll.setWidget(self.used_thumb_widget)
+
+        image_top_layout = QHBoxLayout()
+        image_top_layout.addWidget(self.used_main_image)
+        image_top_layout.addWidget(self.used_thumb_scroll)
+
+        car_id_label = QLabel("车辆ID:")
+        car_id_label.setFixedWidth(60)
+        self.used_car_id_label = QLabel("-")
+        self.used_car_id_label.setWordWrap(True)
+        self.used_car_id_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.used_car_id_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.used_detail_items["car_id"] = self.used_car_id_label
+
+        car_id_layout = QHBoxLayout()
+        car_id_layout.addWidget(car_id_label)
+        car_id_layout.addWidget(self.used_car_id_label)
+
+        used_image_layout.addLayout(image_top_layout)
+        used_image_layout.addLayout(car_id_layout)
+
+        used_main_layout.addLayout(used_info_layout)
+        used_main_layout.addLayout(used_image_layout)
+        self.used_detail_widget.setLayout(used_main_layout)
+        detail_layout.addWidget(self.used_detail_widget)
 
         detail_group.setLayout(detail_layout)
         right_layout.addWidget(detail_group)
@@ -229,8 +323,10 @@ class ValuationTab(QWidget):
 
         right_panel.setLayout(right_layout)
 
-        main_layout.addWidget(left_panel, 0)
-        main_layout.addWidget(right_panel, 0)
+        main_layout.setStretchFactor(left_panel, 2)
+        main_layout.setStretchFactor(right_panel, 1)
+        main_layout.addWidget(left_panel)
+        main_layout.addWidget(right_panel)
         self.setLayout(main_layout)
 
     def load_brands(self):
@@ -359,6 +455,15 @@ class ValuationTab(QWidget):
         if car_type == "事故车":
             for key in self.used_detail_items:
                 self.used_detail_items[key].setText("-")
+            self.used_main_image.setText("无图片")
+            while self.used_thumb_layout.count():
+                w = self.used_thumb_layout.takeAt(0).widget()
+                if w: w.deleteLater()
+
+            for key in self.accident_detail_items:
+                self.accident_detail_items[key].setText("")
+
+            self.load_car_images(car, "accident")
 
             for key, label in self.accident_detail_items.items():
                 if key == "id":
@@ -375,6 +480,15 @@ class ValuationTab(QWidget):
         else:
             for key in self.accident_detail_items:
                 self.accident_detail_items[key].setText("-")
+            self.accident_main_image.setText("无图片")
+            while self.accident_thumb_layout.count():
+                w = self.accident_thumb_layout.takeAt(0).widget()
+                if w: w.deleteLater()
+
+            for key in self.used_detail_items:
+                self.used_detail_items[key].setText("")
+
+            self.load_car_images(car, "used")
 
             for key, label in self.used_detail_items.items():
                 if key == "id":
@@ -414,6 +528,101 @@ class ValuationTab(QWidget):
 
         self.similar_current_page = 0
         self.load_similar_page()
+
+    def load_car_images(self, car, car_type):
+        # 1. 定义配置映射，消除重复代码
+        config_map = {
+            "accident": {
+                "main": self.accident_main_image,
+                "thumb_layout": self.accident_thumb_layout
+            },
+            "used": {
+                "main": self.used_main_image,
+                "thumb_layout": self.used_thumb_layout
+            }
+        }
+
+        if car_type not in config_map:
+            return
+
+        ui = config_map[car_type]
+        main_image = ui["main"]
+        thumb_layout = ui["thumb_layout"]
+
+        # 2. 清理旧数据
+        main_image.clear()
+        main_image.setText("无图片")
+
+        while thumb_layout.count():
+            item = thumb_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        # 3. 准备路径
+        car_id = car.get("car_id", "")
+        if not car_id:
+            return
+
+        data_path = config.get_data_path()
+        image_dir = os.path.join(data_path, "images", str(car_id))
+
+        # 检查目录是否存在
+        if not os.path.exists(image_dir):
+            main_image.setText("图片目录不存在")
+            return
+
+        # 4. 【核心修改】直接扫描目录下的所有文件
+        # 获取目录下所有文件名
+        all_files = os.listdir(image_dir)
+        # 简单的图片格式白名单过滤
+        valid_images = [f for f in all_files if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif'))]
+
+        # 排序（可选）：让图片按文件名顺序显示，比如 1.jpg, 2.jpg...
+        valid_images.sort()
+
+        if not valid_images:
+            main_image.setText("目录中无图片")
+            return
+
+        first_image_loaded = False
+
+        # 5. 遍历生成缩略图
+        for filename in valid_images:
+            # 拼接完整路径
+            img_path = os.path.join(image_dir, filename)
+
+            # 确保是文件而不是子目录
+            if not os.path.isfile(img_path):
+                continue
+
+            # 尝试加载图片
+            pixmap = QPixmap(img_path)
+            if pixmap.isNull():
+                continue  # 跳过损坏的文件
+
+            # --- 生成缩略图 ---
+            thumb_pixmap = pixmap.scaled(60, 60, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+            thumb_label = QLabel()
+            thumb_label.setPixmap(thumb_pixmap)
+            thumb_label.setCursor(Qt.PointingHandCursor)
+            thumb_label.setStyleSheet("border: 1px solid #ccc; padding: 2px;")
+
+            # 绑定点击事件
+            thumb_label.mousePressEvent = lambda e, path=img_path, m=main_image: self.show_main_image(path, m)
+
+            thumb_layout.addWidget(thumb_label)
+
+            # --- 设置第一张为主图 ---
+            if not first_image_loaded:
+                main_pixmap = pixmap.scaled(250, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                main_image.setPixmap(main_pixmap)
+                main_image.setText("")  # 清除"无图片"文字
+                first_image_loaded = True
+
+    def show_main_image(self, image_path, main_image):
+        main_image.setPixmap(
+            QPixmap(image_path).scaled(250, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
     def load_similar_page(self):
         params = self.similar_params.copy()
@@ -475,3 +684,5 @@ class ValuationTab(QWidget):
             else:
                 value = str(car.get(key, "-"))
             self.used_detail_items[key].setText(value)
+
+        self.load_car_images(car, "used")

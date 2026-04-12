@@ -1,45 +1,32 @@
+import os
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from apscheduler.schedulers.background import BackgroundScheduler
 
+from core import config
 from crawler import CRAWLER_DICT
-from crawler.car_crawler import BaseCrawler
-from crawler.boche_crawler import BoCheCrawler
 
 
 class TaskExecutor:
     _instance = None
     _lock = threading.Lock()
 
-    def __new__(cls):
+    def __new__(cls, db):
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
                 cls._instance._initialized = False
             return cls._instance
 
-    def __init__(self):
+    def __init__(self, db):
         if self._initialized:
             return
         self._initialized = True
-        self.db = None
-        self.scheduler = BackgroundScheduler()
-        self.active_tasks = {}
-        self._running = False
-        self.last_error = None
-
-    def set_database(self, db):
         self.db = db
-
-    def start(self):
-        if not self.scheduler.running:
-            self.scheduler.start()
-            self._running = True
-
-    def stop(self):
-        if self.scheduler.running:
-            self.scheduler.shutdown()
-            self._running = False
+        self.task_pool = ThreadPoolExecutor(max_workers=5)
+        self.image_pool = ThreadPoolExecutor(max_workers=10)
+        self.active_tasks = {}
+        self.last_error = None
 
     def execute_task(self, task_id):
         if self.db is None:
@@ -48,7 +35,7 @@ class TaskExecutor:
         if task_id in self.active_tasks:
             return
 
-        threading.Thread(target=self._execute_task_internal, args=(task_id,), daemon=True).start()
+        self.task_pool.submit(self._execute_task_internal, task_id)
 
     def _execute_task_internal(self, task_id):
         task = self.db.query_one("SELECT * FROM task WHERE id = :id", {"id": task_id})
@@ -80,11 +67,12 @@ class TaskExecutor:
                 cars = crawler.get_accident_cars(max_count=task["max_count"])
                 if cars:
                     self.db.batch_upsert_sqlite("accident_car", cars)
-                    
+                    self._download_images(cars)
             elif task["task_type"] == "used":
                 cars = crawler.get_used_cars(max_count=task["max_count"])
                 if cars:
                     self.db.batch_upsert_sqlite("used_car", cars)
+                    self._download_images(cars)
 
             self.db.update("task_execution", {
                 "end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -102,26 +90,47 @@ class TaskExecutor:
         finally:
             self.active_tasks.pop(task_id, None)
 
-    def enable_task(self, task_id):
-        self.db.update("task", {"enabled": 1, "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}, "id = :id", {"id": task_id})
-        task = self.db.query_one("SELECT * FROM task WHERE id = :id", {"id": task_id})
-        if task and task.get("schedule_type") == "cron" and task.get("cron_expression"):
-            self.scheduler.add_job(
-                self.execute_task,
-                "cron",
-                args=[task_id],
-                id=f"task_{task_id}",
-                replace_existing=True,
-                **self._parse_cron(task["cron_expression"])
-            )
-        self.start()
+    def _download_images(self, cars):
+        if not cars:
+            return
+        for car in cars:
+            car_id = car.get("car_id")
+            images = car.get("detail_urls")
+            if not images or not car_id:
+                continue
+            self.image_pool.submit(self._download_single_car_images, car_id, images)
 
-    def disable_task(self, task_id):
-        self.db.update("task", {"enabled": 0, "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}, "id = :id", {"id": task_id})
-        job_id = f"task_{task_id}"
-        if self.scheduler.get_job(job_id):
-            self.scheduler.remove_job(job_id)
-        self.active_tasks.pop(task_id, None)
+    def _download_single_car_images(self, car_id, images):
+        import json
+        try:
+            images = json.loads(images)
+        except:
+            return
+
+        # 做多保存4张
+        images = images[:4]
+
+        save_path = os.path.join(config.get_data_path(), "images", str(car_id))
+        os.makedirs(save_path, exist_ok=True)
+
+        for img in images:
+            middle_file_id = img.get("middleFileid", "")
+            image_id = img.get("imageId", "")
+            if not middle_file_id or not image_id:
+                continue
+
+            file_path = os.path.join(save_path, image_id)
+            if os.path.exists(file_path):
+                continue
+
+            try:
+                import requests
+                resp = requests.get(middle_file_id, timeout=3)
+                if resp.status_code == 200:
+                    with open(file_path, "wb") as f:
+                        f.write(resp.content)
+            except Exception as e:
+                print(f"下载图片失败: {middle_file_id}, error: {e}")
 
     def is_task_running(self, task_id):
         return task_id in self.active_tasks
@@ -135,14 +144,6 @@ class TaskExecutor:
     def clear_last_error(self):
         self.last_error = None
 
-    def _parse_cron(self, cron_expr):
-        parts = cron_expr.split()
-        if len(parts) == 5:
-            return {
-                "minute": parts[0],
-                "hour": parts[1],
-                "day": parts[2],
-                "month": parts[3],
-                "day_of_week": parts[4]
-            }
-        return {"minute": "0", "hour": "0"}
+    def shutdown(self):
+        self.task_pool.shutdown(wait=True)
+        self.image_pool.shutdown(wait=True)

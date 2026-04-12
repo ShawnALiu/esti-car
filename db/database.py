@@ -360,6 +360,13 @@ class Database:
             conn.commit()
             return result.rowcount > 0
 
+    def cleanup_data(self, table: str, before_date: str) -> int:
+        sql_str = f"DELETE FROM {table} WHERE created_at < :before_date"
+        with self.engine.connect() as conn:
+            result = conn.execute(text(sql_str), {"before_date": before_date})
+            conn.commit()
+            return result.rowcount
+
     # --- 5. 查询多行 ---
     def query(self, sql_str: str, params: Optional[Dict] = None) -> List[Dict]:
         sql = text(sql_str)
