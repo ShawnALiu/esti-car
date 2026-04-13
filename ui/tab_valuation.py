@@ -399,7 +399,7 @@ class ValuationTab(QWidget):
         params["offset"] = self.current_page * self.page_size
         
         self.current_cars = self.db.query(
-            f"SELECT * FROM {table} WHERE {self.where_sql} ORDER BY created_at DESC LIMIT :limit OFFSET :offset", params
+            f"SELECT * FROM {table} WHERE {self.where_sql} ORDER BY id DESC LIMIT :limit OFFSET :offset", params
         )
 
         self.car_list.setRowCount(len(self.current_cars))
@@ -643,7 +643,7 @@ class ValuationTab(QWidget):
         params["offset"] = self.similar_current_page * self.page_size
         
         self.similar_cars = self.db.query(
-            f"SELECT * FROM {self.cur_table} WHERE {self.similar_where_sql} ORDER BY created_at DESC LIMIT :limit OFFSET :offset", params
+            f"SELECT * FROM {self.cur_table} WHERE {self.similar_where_sql} ORDER BY id DESC LIMIT :limit OFFSET :offset", params
         )
 
         self.similar_table.setRowCount(len(self.similar_cars))
