@@ -7,6 +7,9 @@ from datetime import datetime
 from core.config import get_data_path
 
 
+logger = None
+
+
 class ScheduleWorker:
     _instance = None
 
@@ -17,8 +20,15 @@ class ScheduleWorker:
         return cls._instance
 
     def __init__(self, db_instance, executor_instance):
+        global logger
         if self._initialized:
             return
+        if logger is None:
+            from core.logger import get_logger
+            logger = get_logger("schedule_workers")
+        
+        logger.info("ScheduleWorker 初始化")
+        
         self._initialized = True
         self.db = db_instance
         self.executor = executor_instance
@@ -27,6 +37,7 @@ class ScheduleWorker:
 
     def start_scan(self):
         threading.Thread(target=self._scan_loop, daemon=True).start()
+        logger.info("定时任务扫描线程已启动")
 
     def _scan_loop(self):
         while True:
@@ -34,7 +45,7 @@ class ScheduleWorker:
                 self.scan_tasks()
                 time.sleep(60)
             except Exception as e:
-                print('任务扫描出现错误', e)
+                logger.error(f"任务扫描异常: {type(e).__name__}: {e}", exc_info=True)
 
     def scan_tasks(self):
         if not self.db or not self.executor:
@@ -51,6 +62,7 @@ class ScheduleWorker:
                 continue
 
             if task_id not in self.executor.get_active_tasks():
+                logger.info(f"触发定时任务, task_id={task_id}, interval={interval}")
                 self.executor.execute_task(task_id)
 
     def shutdown(self):

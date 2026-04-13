@@ -5,6 +5,11 @@ import random
 
 import requests
 
+from core.logger import get_logger
+
+
+logger = get_logger("captcha")
+
 
 def download_image(url):
     """
@@ -18,10 +23,10 @@ def download_image(url):
         if resp.status_code == 200:
             return resp.content
         else:
-            print(f"图片下载失败: {resp.status_code}")
+            logger.warning(f"图片下载失败: {resp.status_code}")
             return None
     except Exception as e:
-        print(f"下载异常: {e}")
+        logger.warning(f"下载异常: {e}")
         return None
 
 
@@ -114,14 +119,14 @@ def find_gap_by_histogram(bg_img_path, start_y, end_y, slide_img_path):
             # 缺口宽度 ≈ 滑块宽度 (最常见)
             # 允许一点误差，比如滑块宽度的 0.9 到 1.1 倍
             if slide_w * 0.9 <= count <= slide_w * 1.1:
-                print(f"✅ 找到匹配缺口! 起点: {start_x}, 宽度: {count}, 滑块宽: {slide_w}")
+                logger.info(f"✅ 找到匹配缺口! 起点: {start_x}, 宽度: {count}, 滑块宽: {slide_w}")
                 final_x = start_x
                 break  # 找到第一个符合宽度的就返回
         else:
             i += 1
 
     if final_x == -1:
-        print(f"❌ 未找到宽度匹配的缺口 (期望宽度: {slide_w})")
+        logger.warning(f"❌ 未找到宽度匹配的缺口 (期望宽度: {slide_w})")
 
     return final_x
 

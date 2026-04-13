@@ -9,6 +9,10 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
 from PyQt5.QtCore import Qt, QDate
 from datetime import datetime
 from core.config import set_data_path
+from core.logger import get_logger
+
+
+logger = get_logger("ui")
 
 
 class DataTab(QWidget):

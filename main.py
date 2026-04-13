@@ -2,6 +2,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from core import setup_logging
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtGui import QIcon
 from db.database import Database
@@ -11,6 +12,8 @@ from ui.main_window import MainWindow
 
 
 def main():
+    setup_logging()
+    
     app = QApplication(sys.argv)
     app.setApplicationName("估车侠 EstiCar")
     app.setApplicationVersion("1.0.0")

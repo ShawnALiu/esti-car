@@ -7,6 +7,10 @@ from crawler.car_crawler import BaseCrawler
 import uuid
 
 from utils import captcha_util
+from core.logger import get_logger
+
+
+logger = get_logger("boche_crawler")
 
 
 class BoCheCrawler(BaseCrawler):
@@ -60,8 +64,8 @@ class BoCheCrawler(BaseCrawler):
             offset_y = resp_json['Data']['images']['OffSetY']
             cut_height = resp_json['Data']['images']['CutHeight']
             offset_x = captcha_util.find_gap_by_histogram(new_pic_path, offset_y, offset_y + cut_height, small_pic_path)
-            print(f"获取到 Token: {self.token}")
-            print(f"获取到缺口距离 OffSetX: {offset_x}")
+            logger.info(f"获取到 Token: {self.token}")
+            logger.info(f"获取到缺口距离 OffSetX: {offset_x}")
 
             # --- 第二步：GET请求发送短信验证码 (GetTelCode) ---
             sms_url = f"{self.base_url}/HttpService/GetTelCode"
@@ -73,17 +77,17 @@ class BoCheCrawler(BaseCrawler):
                 'OffSetX': offset_x,
                 'deviceid': self.device_id
             }
-            print(f"请求短信接口: {sms_url}?{sms_params}")
+            logger.info(f"请求短信接口: {sms_url}?{sms_params}")
             sms_resp = self.session.get(sms_url, params=sms_params)
             sms_json = sms_resp.json()
-            print("短信接口原始响应:", sms_resp.text)
+            logger.info(f"短信接口原始响应: {sms_resp.text}")
             if not sms_json['Succeed']:
                 raise Exception(f"发送短信失败: {sms_json.get('Message', sms_resp.text)}")
             check_code_id = sms_json['Data']['checkCodeID']
-            print(f"短信发送成功，获取到 CheckCodeID: {check_code_id}")
+            logger.info(f"短信发送成功，获取到 CheckCodeID: {check_code_id}")
             return check_code_id
         except Exception as e:
-            print(f"博车网登录失败: {e}")
+            logger.error(f"博车网登录失败: {e}", exc_info=True)
             return None
 
     def login(self, check_code_id=None, verify_code=None):
@@ -122,12 +126,13 @@ class BoCheCrawler(BaseCrawler):
                 self.car_wins_user_id = car_wins_data.get("carWinsUserID")
                 self.institution_id = car_wins_data.get("institutionID")
 
+                logger.info(f"博车网登录成功")
                 return True
             else:
                 raise Exception(f"登录失败: {login_json.get('Message', '未知错误')}")
 
         except Exception as e:
-            print(f"博车网登录失败: {e}")
+            logger.error(f"博车网登录失败: {e}", exc_info=True)
             return False
 
     def get_accident_cars(self, max_count=1000):
@@ -190,7 +195,7 @@ class BoCheCrawler(BaseCrawler):
                             "paimaihuiLeixing": item.get("paimaihuiLeixing", 0),
                         })
         except Exception as e:
-            print(f"获取拍卖会列表失败: {e}")
+            logger.error(f"获取拍卖会列表失败: {e}", exc_info=True)
         
         return auctions
 
@@ -222,7 +227,7 @@ class BoCheCrawler(BaseCrawler):
                     for item in items:
                         cars.append(item)
         except Exception as e:
-            print(f"获取侧边栏拍卖车辆列表失败: {e}")
+            logger.error(f"获取侧边栏拍卖车辆列表失败: {e}", exc_info=True)
 
         return cars
 
@@ -249,7 +254,7 @@ class BoCheCrawler(BaseCrawler):
                     data = result.get("Data", {})
                     return data
         except Exception as e:
-            print(f"获取标的信息失败: {e}")
+            logger.error(f"获取标的信息失败: {e}", exc_info=True)
         return None
 
     def get_pai_pin_header_info(self, pai_mai_id, pai_pin_id):
@@ -275,7 +280,7 @@ class BoCheCrawler(BaseCrawler):
                     data = result.get("Data", {})
                     return data
         except Exception as e:
-            print(f"获取拍品头信息失败: {e}")
+            logger.error(f"获取拍品头信息失败: {e}", exc_info=True)
         return None
 
     def _get_server_time(self):
@@ -375,34 +380,4 @@ class BoCheCrawler(BaseCrawler):
         return images
 
 
-
 boche_crawler_ins = BoCheCrawler()
-
-
-
-if __name__ == "__main__":
-    print("=== 测试博车网爬虫 ===")
-    _base_url = 'https://appservice.bochewang.com.cn'
-    _username = '15105149161'
-    _password = 'sal123456789'
-    boche_crawler_ins.update_credentials(_base_url, _username, _password)
-    
-    print("需要登录才能获取数据，请先配置账号")
-    _check_code_id = boche_crawler_ins.pre_login()
-    _verify_code = input("请输入收到的短信验证码: ")
-    session = boche_crawler_ins.login(_check_code_id, _verify_code)
-
-    print("1. 事故车列表")
-    print("2. 二手车列表")
-    choice = input("请选择 (1/2): ").strip()
-    
-    if choice == "1":
-        _cars = boche_crawler_ins.get_accident_cars(max_count=10)
-        print(f"找到 {len(_cars)} 台事故车")
-        for c in _cars[:3]:
-            print(f"  - {c['che_liang_pin_pai']} {c['xuanZeZiXiLie']}: ¥{c['yi_kou_jia']}")
-    elif choice == "2":
-        _cars = boche_crawler_ins.get_used_cars(max_count=10)
-        print(f"找到 {len(_cars)} 台二手车")
-        for c in _cars[:3]:
-            print(f"  - {c['che_liang_pin_pai']} {c['xuanZeZiXiLie']}: ¥{c['yi_kou_jia']}")

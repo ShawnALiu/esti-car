@@ -8,6 +8,11 @@ import threading
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 
+from core.logger import get_logger
+
+
+logger = get_logger("database")
+
 # --- 1. DDL 定义 (保持原样) ---
 account_config_ddl = """
 CREATE TABLE account_config (
@@ -262,7 +267,7 @@ class Database:
                 conn.commit()
                 return len(data_list)
         except Exception as e:
-            print(f"批量插入失败: {e}")
+            logger.error(f"批量插入失败: {e}", exc_info=True)
             return 0
 
     def batch_upsert_sqlite(self, table_name: str, data_list: List[Dict[str, Any]]) -> int:
@@ -428,24 +433,3 @@ class Database:
         tables = ["accident_car", "used_car", "task_execution", "task", "account_config"]
         for table in tables:
             self.rebuild_table(table)
-
-
-
-
-# --- 4. 使用示例 ---
-if __name__ == "__main__":
-    # 初始化数据库 (自动创建连接池)
-    db = Database()
-
-    # 插入测试数据
-    account_id = db.insert("account_config", {
-        "site_name": "Test Site",
-        "site_url": "http://test.com",
-        "username": "user",
-        "password": "pass"
-    })
-    print(f"插入 ID: {account_id}")
-
-    # 查询测试
-    _result = db.query_one("SELECT * FROM account_config WHERE id = :id", {"id": account_id})
-    print(f"查询结果: {_result}")

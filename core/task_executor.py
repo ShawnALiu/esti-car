@@ -10,6 +10,14 @@ from core import config
 from crawler import CRAWLER_DICT
 
 
+def _get_logger():
+    from core.logger import get_logger
+    return get_logger("task_executor")
+
+
+logger = _get_logger()
+
+
 class TaskExecutor:
     _instance = None
     _lock = threading.Lock()
@@ -48,21 +56,32 @@ class TaskExecutor:
         self.task_pool.submit(self._execute_task_internal, task_id)
 
     def _execute_task_internal(self, task_id):
+        global logger
+        if logger is None:
+            from core.logger import get_logger
+            logger = get_logger("task_executor")
+        
+        logger.info(f"开始执行任务, task_id={task_id}")
+        
         task = self.db.query_one("SELECT * FROM task WHERE id = :id", {"id": task_id})
         if not task:
+            logger.warning(f"任务不存在, task_id={task_id}")
             return
 
         account = self.db.query_one("SELECT * FROM account_config WHERE id = :id", {"id": task["account_id"]})
         if not account:
+            logger.warning(f"账号配置不存在, task_id={task_id}")
             return
 
         site_name = account.get("site_name", "")
         crawler = CRAWLER_DICT.get(site_name)
         if not crawler:
             self.last_error = f"未找到网站 [{site_name}] 对应的爬虫实例"
+            logger.error(self.last_error)
             return
         if not crawler.base_url:
             self.last_error = f"网站 [{site_name}] 未登录"
+            logger.error(self.last_error)
             return
 
         execution_id = self.db.insert("task_execution", {
@@ -138,11 +157,9 @@ class TaskExecutor:
                         for chunk in resp.iter_content(chunk_size=8192):
                             f.write(chunk)
                 else:
-                    print(f"下载失败 (状态码 {resp.status_code}): {middle_file_id}")
+                    logger.warning(f"下载失败 (状态码 {resp.status_code}): {middle_file_id}")
         except Exception as e:
-            # 避免打印过多异常影响性能
-            # print(f"下载异常: {e}")
-            pass
+            logger.warning(f"下载异常: {e}")
 
 
     def is_task_running(self, task_id):
