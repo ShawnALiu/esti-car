@@ -19,8 +19,9 @@ def get_logger(name: str = None):
     logger.setLevel(logging.DEBUG)
     logger.propagate = False
     
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    logs_dir = os.path.join(project_root, "logs")
+    from core.config import get_data_path
+    data_path = get_data_path()
+    logs_dir = os.path.join(data_path, "logs")
     os.makedirs(logs_dir, exist_ok=True)
     
     log_file = os.path.join(logs_dir, f"{name}.log")
