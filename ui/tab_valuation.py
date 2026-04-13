@@ -142,7 +142,7 @@ class ValuationTab(QWidget):
 
         accident_info_layout = QVBoxLayout()
         accident_info_layout.setSpacing(5)
-        accident_label = QLabel("<b>事故车详情</b>")
+        accident_label = QLabel("<b>车辆详情1</b>")
         accident_label.setStyleSheet("font-size: 14px; font-weight: bold;")
         accident_info_layout.addWidget(accident_label)
 
@@ -215,7 +215,7 @@ class ValuationTab(QWidget):
 
         used_info_layout = QVBoxLayout()
         used_info_layout.setSpacing(5)
-        used_label = QLabel("<b>二手车详情</b>")
+        used_label = QLabel("<b>车辆详情2</b>")
         used_label.setStyleSheet("font-size: 14px; font-weight: bold;")
         used_info_layout.addWidget(used_label)
 
@@ -285,7 +285,7 @@ class ValuationTab(QWidget):
         detail_group.setLayout(detail_layout)
         right_layout.addWidget(detail_group)
 
-        similar_group = QGroupBox("相似二手车参考")
+        similar_group = QGroupBox("相似车辆参考")
         similar_layout = QVBoxLayout()
         self.similar_table = QTableWidget()
         self.similar_table.setColumnCount(9)
@@ -508,6 +508,7 @@ class ValuationTab(QWidget):
         brand = car.get("che_liang_pin_pai", "")
         model = car.get("xuan_ze_zi_xi_lie", "")
         year = car.get("chu_chang_ri_qi", 0)
+        car_id = car.get("car_id", "")
 
         if not brand:
             self.similar_cars = []
@@ -516,16 +517,22 @@ class ValuationTab(QWidget):
             self.update_similar_page_label()
             return
 
+        car_type = self.car_type.currentText()
+        self.cur_table = "accident_car" if car_type == "事故车" else "used_car"
+
         self.similar_where_clauses = ["che_liang_pin_pai LIKE :brand"]
         self.similar_params = {"brand": f"%{brand}%"}
         if model:
             self.similar_where_clauses.append("xuan_ze_zi_xi_lie LIKE :model")
             self.similar_params["model"] = f"%{model}%"
+        if car_id:
+            self.similar_where_clauses.append("car_id != :car_id")
+            self.similar_params["car_id"] = car_id
 
         self.similar_where_sql = " AND ".join(self.similar_where_clauses)
         
         self.similar_total_count = self.db.query_one(
-            f"SELECT COUNT(*) as cnt FROM used_car WHERE {self.similar_where_sql}", self.similar_params
+            f"SELECT COUNT(*) as cnt FROM {self.cur_table} WHERE {self.similar_where_sql}", self.similar_params
         )["cnt"]
 
         self.similar_current_page = 0
@@ -632,7 +639,7 @@ class ValuationTab(QWidget):
         params["offset"] = self.similar_current_page * self.page_size
         
         self.similar_cars = self.db.query(
-            f"SELECT * FROM used_car WHERE {self.similar_where_sql} ORDER BY created_at DESC LIMIT :limit OFFSET :offset", params
+            f"SELECT * FROM {self.cur_table} WHERE {self.similar_where_sql} ORDER BY created_at DESC LIMIT :limit OFFSET :offset", params
         )
 
         self.similar_table.setRowCount(len(self.similar_cars))
