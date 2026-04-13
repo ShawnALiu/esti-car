@@ -26,7 +26,7 @@ class TaskExecutor:
         self._initialized = True
         self.db = db
         self.task_pool = ThreadPoolExecutor(max_workers=5)
-        self.image_pool = ThreadPoolExecutor(max_workers=10)
+        self.image_pool = ThreadPoolExecutor(max_workers=20)
         self.active_tasks = {}
         self.last_error = None
 

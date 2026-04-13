@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                               QTableWidget, QTableWidgetItem, QLabel, QPushButton,
                               QComboBox, QLineEdit, QGroupBox, QHeaderView, QAbstractItemView,
-                              QMessageBox, QFrame, QScrollArea, QSpinBox, QSizePolicy)
+                              QMessageBox, QFrame, QScrollArea, QSpinBox, QSizePolicy, QDialog)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QPixmap
 import json
@@ -174,6 +174,8 @@ class ValuationTab(QWidget):
         self.accident_main_image.setFixedSize(250, 150)
         self.accident_main_image.setScaledContents(True)
         self.accident_main_image.setStyleSheet("background-color: #f0f0f0; border: 1px solid #ccc;")
+        self.accident_main_image.setCursor(Qt.PointingHandCursor)
+        self.accident_main_image.mousePressEvent = lambda e: self.show_image_popup("accident")
 
         self.accident_thumb_scroll = QScrollArea()
         self.accident_thumb_scroll.setFixedWidth(100)
@@ -247,6 +249,8 @@ class ValuationTab(QWidget):
         self.used_main_image.setFixedSize(250, 150)
         self.used_main_image.setScaledContents(True)
         self.used_main_image.setStyleSheet("background-color: #f0f0f0; border: 1px solid #ccc;")
+        self.used_main_image.setCursor(Qt.PointingHandCursor)
+        self.used_main_image.mousePressEvent = lambda e: self.show_image_popup("used")
 
         self.used_thumb_scroll = QScrollArea()
         self.used_thumb_scroll.setFixedWidth(100)
@@ -695,3 +699,79 @@ class ValuationTab(QWidget):
             self.used_detail_items[key].setText(value)
 
         self.load_car_images(car, "used")
+
+    def show_image_popup(self, car_type):
+        if car_type == "accident":
+            pixmap = self.accident_main_image.pixmap()
+            car_id = self.accident_car_id_label.text()
+        else:
+            pixmap = self.used_main_image.pixmap()
+            car_id = self.used_car_id_label.text()
+
+        if pixmap is None or pixmap.isNull():
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"车辆图片 - {car_id}")
+        dialog.setMinimumSize(600, 450)
+        
+        layout = QVBoxLayout()
+        
+        self.popup_scroll = QScrollArea()
+        self.popup_scroll.setWidgetResizable(True)
+        self.popup_image_label = QLabel()
+        self.popup_image_label.setPixmap(pixmap)
+        self.popup_image_label.setAlignment(Qt.AlignCenter)
+        self.popup_scroll.setWidget(self.popup_image_label)
+        layout.addWidget(self.popup_scroll)
+        
+        btn_layout = QHBoxLayout()
+        
+        zoom_in_btn = QPushButton("放大")
+        zoom_in_btn.clicked.connect(lambda: self.zoom_image(1.2))
+        btn_layout.addWidget(zoom_in_btn)
+        
+        zoom_out_btn = QPushButton("缩小")
+        zoom_out_btn.clicked.connect(lambda: self.zoom_image(0.8))
+        btn_layout.addWidget(zoom_out_btn)
+        
+        reset_btn = QPushButton("重置")
+        reset_btn.clicked.connect(lambda: self.zoom_image(0, True))
+        btn_layout.addWidget(reset_btn)
+        
+        btn_layout.addStretch()
+        
+        close_btn = QPushButton("关闭")
+        close_btn.clicked.connect(dialog.close)
+        btn_layout.addWidget(close_btn)
+        
+        layout.addLayout(btn_layout)
+        dialog.setLayout(layout)
+        
+        self.current_zoom = 1.0
+        self._original_pixmap = pixmap
+        self.popup_dialog = dialog
+        dialog.exec_()
+
+    def zoom_image(self, factor, reset=False):
+        if not hasattr(self, '_original_pixmap') or not self._original_pixmap:
+            return
+            
+        if reset:
+            self.current_zoom = 1.0
+        else:
+            self.current_zoom *= factor
+        
+        if self.current_zoom < 0.1:
+            self.current_zoom = 0.1
+        if self.current_zoom > 5.0:
+            self.current_zoom = 5.0
+        
+        if hasattr(self, 'popup_image_label'):
+            original = self._original_pixmap
+            scaled = original.scaled(
+                int(original.width() * self.current_zoom),
+                int(original.height() * self.current_zoom),
+                Qt.KeepAspectRatio, Qt.SmoothTransformation
+            )
+            self.popup_image_label.setPixmap(scaled)
