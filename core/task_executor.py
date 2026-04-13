@@ -1,3 +1,4 @@
+import json
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -107,46 +108,42 @@ class TaskExecutor:
             images_json = car.get("detail_urls")
             if not images_json or not car_id:
                 continue
-            self.image_pool.submit(self._download_single_car_images, car_id, images_json)
-
-    def _download_single_car_images(self, car_id, images):
-        import json
-        try:
-            images = json.loads(images)
-        except:
-            return
-
-        # 做多保存4张
-        images = images[:4]
-
-        save_path = os.path.join(config.get_data_path(), "images", str(car_id))
-        os.makedirs(save_path, exist_ok=True)
-
-        for img in images:
-            middle_file_id = img.get("middleFileid", "")
-            image_id = img.get("imageId", "")
-            if not middle_file_id or not image_id:
-                continue
-
-            file_path = os.path.join(save_path, image_id)
-            if os.path.exists(file_path):
-                continue
-
             try:
-                # 使用 Session 发送请求
-                # stream=True 表示流式下载，不一次性加载到内存
-                with self.download_session.get(middle_file_id, timeout=5, stream=True) as resp:
-                    if resp.status_code == 200:
-                        # 直接写入文件
-                        with open(file_path, "wb") as f:
-                            for chunk in resp.iter_content(chunk_size=8192):
-                                f.write(chunk)
-                    else:
-                        print(f"下载失败 (状态码 {resp.status_code}): {middle_file_id}")
-            except Exception as e:
-                # 避免打印过多异常影响性能
-                # print(f"下载异常: {e}")
-                pass
+                images = json.loads(images_json)
+            except:
+                continue
+            # 最多保存4张
+            images = images[:4]
+            save_path = os.path.join(config.get_data_path(), "images", str(car_id))
+            os.makedirs(save_path, exist_ok=True)
+
+            for img in images:
+                self.image_pool.submit(self._download_single_car_images, save_path, img)
+
+    def _download_single_car_images(self, save_path, img):
+        middle_file_id = img.get("middleFileid", "")
+        image_id = img.get("imageId", "")
+        if not middle_file_id or not image_id:
+            return
+        file_path = os.path.join(save_path, image_id)
+        if os.path.exists(file_path):
+            return
+        try:
+            # 使用 Session 发送请求
+            # stream=True 表示流式下载，不一次性加载到内存
+            with self.download_session.get(middle_file_id, timeout=5, stream=True) as resp:
+                if resp.status_code == 200:
+                    # 直接写入文件
+                    with open(file_path, "wb") as f:
+                        for chunk in resp.iter_content(chunk_size=8192):
+                            f.write(chunk)
+                else:
+                    print(f"下载失败 (状态码 {resp.status_code}): {middle_file_id}")
+        except Exception as e:
+            # 避免打印过多异常影响性能
+            # print(f"下载异常: {e}")
+            pass
+
 
     def is_task_running(self, task_id):
         return task_id in self.active_tasks
