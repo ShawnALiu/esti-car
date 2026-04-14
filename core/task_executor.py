@@ -1,21 +1,16 @@
 import json
 import os
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import requests
 
-from core import config
+from core import config, get_logger
 from crawler import CRAWLER_DICT
 
-
-def _get_logger():
-    from core.logger import get_logger
-    return get_logger("task_executor")
-
-
-logger = _get_logger()
+logger = get_logger("task_executor")
 
 
 class TaskExecutor:
@@ -56,11 +51,6 @@ class TaskExecutor:
         self.task_pool.submit(self._execute_task_internal, task_id)
 
     def _execute_task_internal(self, task_id):
-        global logger
-        if logger is None:
-            from core.logger import get_logger
-            logger = get_logger("task_executor")
-        
         logger.info(f"开始执行任务, task_id={task_id}")
         
         task = self.db.query_one("SELECT * FROM task WHERE id = :id", {"id": task_id})
@@ -118,48 +108,101 @@ class TaskExecutor:
             }, "id = :id", {"id": execution_id})
         finally:
             self.active_tasks.pop(task_id, None)
+            logger.info(f"任务执行结束, task_id={task_id}")
 
     def _download_images(self, cars):
         if not cars:
             return
+
+        logger.info(f"开始准备下载图片，共 {len(cars)} 辆车")
+        futures = []
+
         for car in cars:
             car_id = car.get("car_id")
             images_json = car.get("detail_urls")
             if not images_json or not car_id:
+                logger.error(f"非法参数。car_id={car_id}, images_json={images_json}")
                 continue
             try:
                 images = json.loads(images_json)
             except:
+                logger.error(f"images_json反序列化失败。car_id={car_id}, images_json={images_json}")
                 continue
+
             # 最多保存4张
             images = images[:4]
             save_path = os.path.join(config.get_data_path(), "images", str(car_id))
             os.makedirs(save_path, exist_ok=True)
 
             for img in images:
-                self.image_pool.submit(self._download_single_car_images, save_path, img)
+                # 提交任务并保存 future 对象
+                future = self.image_pool.submit(self._download_single_image, save_path, img)
+                futures.append(future)
 
-    def _download_single_car_images(self, save_path, img):
+        # 【关键修复】等待所有下载任务完成
+        # 如果不加这个，主程序会在下载完成前就结束
+        logger.info(f"已提交 {len(futures)} 个下载任务，正在等待完成...")
+        from concurrent.futures import as_completed
+        for _ in as_completed(futures):
+            pass  # 只要不报错就行，具体的错误在 _download_single_image 里处理了
+
+        logger.info("所有图片下载任务处理完毕。")
+
+    def _download_single_image(self, save_path, img):
+        # 这里的 logger 最好用全局的或者传入的，防止多线程下 logger 为 None
+        global logger
+        if logger is None:
+            from core.logger import get_logger
+            logger = get_logger("task_executor")
+
         middle_file_id = img.get("middleFileid", "")
         image_id = img.get("imageId", "")
+
         if not middle_file_id or not image_id:
             return
+
         file_path = os.path.join(save_path, image_id)
+
+        # 双重检查锁（虽然这里是单线程提交，但在多线程执行时很有用）
         if os.path.exists(file_path):
             return
-        try:
-            # 使用 Session 发送请求
-            # stream=True 表示流式下载，不一次性加载到内存
-            with self.download_session.get(middle_file_id, timeout=5, stream=True) as resp:
-                if resp.status_code == 200:
-                    # 直接写入文件
-                    with open(file_path, "wb") as f:
-                        for chunk in resp.iter_content(chunk_size=8192):
-                            f.write(chunk)
-                else:
-                    logger.warning(f"下载失败 (状态码 {resp.status_code}): {middle_file_id}")
-        except Exception as e:
-            logger.warning(f"下载异常: {e}")
+
+        max_retries = 3
+        temp_file_path = file_path + ".tmp"
+
+        # 可以在这里打印一条调试日志，确认任务真的进来了
+        # logger.debug(f"开始下载: {image_id}")
+
+        for attempt in range(max_retries):
+            try:
+                with self.download_session.get(middle_file_id, timeout=10, stream=True) as resp:
+                    if resp.status_code == 200:
+                        with open(temp_file_path, "wb") as f:
+                            for chunk in resp.iter_content(chunk_size=8192):
+                                if chunk:
+                                    f.write(chunk)
+                        os.replace(temp_file_path, file_path)
+                        return
+                    elif resp.status_code == 404:
+                        logger.warning(f"资源不存在 (404): {image_id}")
+                        return
+                    else:
+                        logger.warning(
+                            f"下载失败 (状态码 {resp.status_code}): {image_id}, 尝试 {attempt + 1}/{max_retries}")
+            except Exception as e:
+                # 记录具体的异常类型，方便调试
+                logger.warning(f"下载异常: {image_id}, 错误: {type(e).__name__}: {e}, 尝试 {attempt + 1}/{max_retries}")
+
+            # 退避策略：重试等待时间递增
+            time.sleep(1 * (attempt + 1))
+
+        # 最终失败
+        if os.path.exists(temp_file_path):
+            try:
+                os.remove(temp_file_path)
+            except:
+                pass
+        logger.error(f"最终下载失败: {image_id} (URL: {middle_file_id})")
 
 
     def is_task_running(self, task_id):

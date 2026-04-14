@@ -1,3 +1,5 @@
+import random
+
 import requests
 import json
 import re
@@ -33,6 +35,7 @@ class BoCheCrawler(BaseCrawler):
         self.institution_id = None
         
         self.device_id = str(uuid.uuid4())
+        self.max_retry = 2
 
     def update_credentials(self, base_url, username, password):
         self.base_url = base_url
@@ -194,6 +197,10 @@ class BoCheCrawler(BaseCrawler):
                             "start_date": item.get("startDate", ""),
                             "paimaihuiLeixing": item.get("paimaihuiLeixing", 0),
                         })
+                else:
+                    logger.error(f"获取拍卖会列表失败: response={response}")
+            else:
+                logger.error(f"获取拍卖会列表失败: response={response}")
         except Exception as e:
             logger.error(f"获取拍卖会列表失败: {e}", exc_info=True)
         
@@ -226,12 +233,18 @@ class BoCheCrawler(BaseCrawler):
                     items = data.get("CarList", [])
                     for item in items:
                         cars.append(item)
+                else:
+                    logger.error(f"获取侧边栏拍卖车辆列表失败: response={response}")
+            else:
+                logger.error(f"获取侧边栏拍卖车辆列表失败: response={response}")
         except Exception as e:
             logger.error(f"获取侧边栏拍卖车辆列表失败: {e}", exc_info=True)
 
         return cars
 
-    def get_biao_di_info(self, pai_mai_id, biao_di_id):
+    def get_biao_di_info(self, pai_mai_id, biao_di_id, retry=0):
+        if retry > self.max_retry:
+            return None
         try:
             url = f"{self.base_url}/HttpService/GetBiaoDiInfo"
             params = {
@@ -247,17 +260,25 @@ class BoCheCrawler(BaseCrawler):
                 "biaoDiID": biao_di_id
             }
             response = self.session.get(url, params=params, timeout=5)
-
+            time.sleep(random.uniform(0, 0.05))
             if response.status_code == 200:
                 result = response.json()
                 if result.get("Succeed"):
                     data = result.get("Data", {})
                     return data
+                else:
+                    logger.error(f"获取标的信息失败: response={response.json()}")
+                    time.sleep(65)
+                    return self.get_biao_di_info(pai_mai_id, biao_di_id, retry+1)
+            else:
+                logger.error(f"获取标的信息失败: response={response.json()}")
         except Exception as e:
             logger.error(f"获取标的信息失败: {e}", exc_info=True)
         return None
 
-    def get_pai_pin_header_info(self, pai_mai_id, pai_pin_id):
+    def get_pai_pin_header_info(self, pai_mai_id, pai_pin_id, retry=0):
+        if retry > self.max_retry:
+            return None
         try:
             url = f"{self.base_url}/HttpService/GetPaiPinHeaderInfo"
             params = {
@@ -273,12 +294,18 @@ class BoCheCrawler(BaseCrawler):
                 "paiPinID": pai_pin_id
             }
             response = self.session.get(url, params=params, timeout=5)
-
+            time.sleep(random.uniform(0, 0.05))
             if response.status_code == 200:
                 result = response.json()
                 if result.get("Succeed"):
                     data = result.get("Data", {})
                     return data
+                else:
+                    logger.error(f"获取拍品头信息失败: response={response.json()}")
+                    time.sleep(65)
+                    return self.get_pai_pin_header_info(pai_mai_id, pai_pin_id, retry + 1)
+            else:
+                logger.error(f"获取拍品头信息失败: response={response.json()}")
         except Exception as e:
             logger.error(f"获取拍品头信息失败: {e}", exc_info=True)
         return None
@@ -377,6 +404,10 @@ class BoCheCrawler(BaseCrawler):
             if header_info and header_info['SamllMiddlePicFileIDs']:
                 images = header_info['SamllMiddlePicFileIDs']
                 return images
+            else:
+                logger.error(f"header_info为空。biao_di_id={biao_di_id}，header_info={header_info}")
+        else:
+            logger.error(f"biao_di_info不合法。biao_di_id={biao_di_id}，biao_di_info={biao_di_info}")
         return images
 
 
