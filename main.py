@@ -1,5 +1,8 @@
 import sys
 import os
+
+from core.image_task_queue import ImageQueue
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from core import setup_logging
@@ -23,8 +26,8 @@ def main():
 
     db = Database()
     executor = TaskExecutor(db)
-
-    schedule_worker = ScheduleWorker(db, executor)
+    image_queue = ImageQueue(db)
+    schedule_worker = ScheduleWorker(db, executor, image_queue)
 
     window = MainWindow(db, executor)
     window.show()

@@ -144,6 +144,28 @@ class BoCheCrawler(BaseCrawler):
     def get_used_cars(self, max_count=1000):
         return self.get_cars(max_count, "used")
 
+    def get_images(self, **kwargs):
+        """
+        @pai_mai_id: 拍卖会id
+        @biao_di_id： 车俩id
+        """
+        pai_mai_id = kwargs.get('pai_mai_id')
+        biao_di_id = kwargs.get('car_id')
+
+        images, vin_str = [], None
+        biao_di_info = self.get_biao_di_info(pai_mai_id, biao_di_id)
+        if biao_di_info and biao_di_info['paiPinIDList']:
+            pai_pin_id = biao_di_info['paiPinIDList'][0]
+            header_info = self.get_pai_pin_header_info(pai_mai_id, pai_pin_id)
+            if header_info and header_info['SamllMiddlePicFileIDs']:
+                images = header_info['SamllMiddlePicFileIDs']
+                vin_str = header_info['vinStr']  # 车架号
+            else:
+                logger.error(f"header_info为空。biao_di_id={biao_di_id}，header_info={header_info}")
+        else:
+            logger.error(f"biao_di_info不合法。biao_di_id={biao_di_id}，biao_di_info={biao_di_info}")
+        return {'images': images, 'vin_str': vin_str}
+
     def get_cars(self, max_count, car_type):
         all_cars = []
         meets = self.get_auction_meet_list(car_type)
@@ -260,7 +282,6 @@ class BoCheCrawler(BaseCrawler):
                 "biaoDiID": biao_di_id
             }
             response = self.session.get(url, params=params, timeout=5)
-            time.sleep(random.uniform(0, 0.05))
             if response.status_code == 200:
                 result = response.json()
                 if result.get("Succeed"):
@@ -268,7 +289,6 @@ class BoCheCrawler(BaseCrawler):
                     return data
                 else:
                     logger.error(f"获取标的信息失败: response={response.json()}")
-                    time.sleep(65)
                     return self.get_biao_di_info(pai_mai_id, biao_di_id, retry+1)
             else:
                 logger.error(f"获取标的信息失败: response={response.json()}")
@@ -294,7 +314,6 @@ class BoCheCrawler(BaseCrawler):
                 "paiPinID": pai_pin_id
             }
             response = self.session.get(url, params=params, timeout=5)
-            time.sleep(random.uniform(0, 0.05))
             if response.status_code == 200:
                 result = response.json()
                 if result.get("Succeed"):
@@ -302,7 +321,6 @@ class BoCheCrawler(BaseCrawler):
                     return data
                 else:
                     logger.error(f"获取拍品头信息失败: response={response.json()}")
-                    time.sleep(65)
                     return self.get_pai_pin_header_info(pai_mai_id, pai_pin_id, retry + 1)
             else:
                 logger.error(f"获取拍品头信息失败: response={response.json()}")
@@ -313,11 +331,10 @@ class BoCheCrawler(BaseCrawler):
     def _get_server_time(self):
         return int(time.time() * 1000)
 
-    def _convert_car_to_db_format(self, pai_mai_id, item, car_type):
-
-        images = self._get_images(pai_mai_id, item.get("carID", None))
-        
+    def _convert_car_to_db_format(self, pai_mai_id, item):
+        images = []
         return {
+            "pai_mai_id": pai_mai_id,
             "site_name": self.site_name,
             "detail_urls": json.dumps(images, ensure_ascii=False),
             
@@ -394,21 +411,6 @@ class BoCheCrawler(BaseCrawler):
         except:
             pass
         return ""
-
-    def _get_images(self, pai_mai_id, biao_di_id):
-        images = []
-        biao_di_info = self.get_biao_di_info(pai_mai_id, biao_di_id)
-        if biao_di_info and biao_di_info['paiPinIDList']:
-            pai_pin_id = biao_di_info['paiPinIDList'][0]
-            header_info = self.get_pai_pin_header_info(pai_mai_id, pai_pin_id)
-            if header_info and header_info['SamllMiddlePicFileIDs']:
-                images = header_info['SamllMiddlePicFileIDs']
-                return images
-            else:
-                logger.error(f"header_info为空。biao_di_id={biao_di_id}，header_info={header_info}")
-        else:
-            logger.error(f"biao_di_info不合法。biao_di_id={biao_di_id}，biao_di_info={biao_di_info}")
-        return images
 
 
 boche_crawler_ins = BoCheCrawler()

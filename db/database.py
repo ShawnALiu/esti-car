@@ -56,6 +56,20 @@ CREATE TABLE task_execution (
 )
 """
 
+image_task_ddl = """
+CREATE TABLE image_task (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    site_name TEXT NOT NULL,
+    pai_mai_id TEXT NOT NULL,
+    car_id TEXT NOT NULL,
+    vin_str TEXT,
+    status INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(car_id)
+)
+"""
+
 accident_car_ddl = """
 CREATE TABLE accident_car (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -251,6 +265,33 @@ class Database:
             conn.commit()
             return result.lastrowid
 
+    def insert_or_ignore(self, table: str, data: Dict[str, Any]) -> int:
+        if not data:
+            return 0
+
+        columns = ", ".join(data.keys())
+        placeholders = ", ".join([f":val_{k}" for k in data.keys()])
+        sql = text(f"INSERT OR IGNORE INTO {table} ({columns}) VALUES ({placeholders})")
+
+        with self.engine.connect() as conn:
+            result = conn.execute(sql, self._dict_to_params(data))
+            conn.commit()
+            return result.lastrowid
+
+    def batch_insert_or_ignore(self, table: str, data_list: List[Dict[str, Any]]) -> int:
+        if not data_list:
+            return 0
+
+        columns = list(data_list[0].keys())
+        col_str = ", ".join(columns)
+        placeholders = ", ".join([f":{col}" for col in columns])
+        sql = text(f"INSERT OR IGNORE INTO {table} ({col_str}) VALUES ({placeholders})")
+
+        with self.engine.connect() as conn:
+            conn.execute(sql, data_list)
+            conn.commit()
+            return conn.execute(text(f"SELECT changes()")).fetchone()[0]
+
     def batch_insert(self, table: str, data_list: List[Dict[str, Any]]) -> int:
         if not data_list:
             return 0
@@ -333,6 +374,33 @@ class Database:
 
         return len(data_list)
 
+    # --- 批量更新 ---
+    def batch_update(self, table: str, data_list: List[Dict[str, Any]]) -> int:
+        if not data_list:
+            return 0
+        
+        ids = [d.get("id") for d in data_list if d.get("id")]
+        if not ids:
+            return 0
+        
+        first = data_list[0]
+        update_data = {k: v for k, v in first.items() if k != "id"}
+        if not update_data:
+            return 0
+        
+        set_clause = ", ".join([f"{k} = :val_{k}" for k in update_data.keys()])
+        placeholders = ", ".join([f":id_{i}" for i in range(len(ids))])
+        sql = text(f"UPDATE {table} SET {set_clause} WHERE id IN ({placeholders})")
+        
+        params = {f"val_{k}": v for k, v in update_data.items()}
+        for i, cid in enumerate(ids):
+            params[f"id_{i}"] = cid
+        
+        with self.engine.connect() as conn:
+            result = conn.execute(sql, params)
+            conn.commit()
+            return result.rowcount
+
     # --- 3. 更新 ---
     def update(self, table: str, data: Dict[str, Any], condition: str, params: Optional[Dict] = None) -> bool:
         if not data:
@@ -402,7 +470,7 @@ class Database:
     def init_tables(self):
         ddl_list = [
             account_config_ddl, task_ddl, task_execution_ddl,
-            accident_car_ddl, used_car_ddl
+            accident_car_ddl, used_car_ddl, image_task_ddl
         ]
 
         with self.engine.connect() as conn:

@@ -21,3 +21,6 @@ class BaseCrawler:
 
     def get_used_cars(self, max_count=100):
         raise NotImplementedError
+
+    def get_images(self, **kwargs):
+        raise NotImplementedError
