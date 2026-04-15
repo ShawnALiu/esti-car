@@ -72,15 +72,19 @@ class TaskExecutor:
         self.active_tasks[task_id] = execution_id
         try:
             if task["task_type"] == "accident":
-                cars = crawler.get_accident_cars(max_count=task["max_count"])
-                if cars:
-                    self.db.batch_upsert_sqlite("accident_car", cars)
-                    self._add_image_tasks(cars)
+                old_cars, new_cars = crawler.get_accident_cars(max_count=task["max_count"])
+                all_cars = old_cars + new_cars
+                if all_cars:
+                    self.db.batch_upsert_sqlite("accident_car", all_cars)
+                if new_cars:
+                    self._add_image_tasks(new_cars)
             elif task["task_type"] == "used":
-                cars = crawler.get_used_cars(max_count=task["max_count"])
-                if cars:
-                    self.db.batch_upsert_sqlite("used_car", cars)
-                    self._add_image_tasks(cars)
+                old_cars, new_cars = crawler.get_used_cars(max_count=task["max_count"])
+                all_cars = old_cars + new_cars
+                if all_cars:
+                    self.db.batch_upsert_sqlite("used_car", all_cars)
+                if new_cars:
+                    self._add_image_tasks(new_cars)
 
             self.db.update("task_execution", {
                 "end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),

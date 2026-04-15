@@ -5,6 +5,9 @@ import json
 import re
 import time
 from datetime import datetime
+
+from cachetools import TTLCache
+
 from crawler.car_crawler import BaseCrawler
 import uuid
 
@@ -36,6 +39,7 @@ class BoCheCrawler(BaseCrawler):
         
         self.device_id = str(uuid.uuid4())
         self.max_retry = 2
+        self.meet_cache = TTLCache(maxsize=1000, ttl=3600*24*7)
 
     def update_credentials(self, base_url, username, password):
         self.base_url = base_url
@@ -167,18 +171,22 @@ class BoCheCrawler(BaseCrawler):
         return {'images': images, 'vin_str': vin_str}
 
     def get_cars(self, max_count, car_type):
-        all_cars = []
+        old_cars, new_cars = [], []
         meets = self.get_auction_meet_list(car_type)
 
         for meet in meets:
-            if len(all_cars) >= max_count:
-                break
+            meet_id = meet['id']
             cars = self.get_sidebar_vehicle(meet["id"])
             for item in cars:
-                car = self._convert_car_to_db_format(meet["id"], item, "used")
-                all_cars.append(car)
+                car = self._convert_car_to_db_format(meet["id"], item)
+                if meet_id in self.meet_cache:
+                    old_cars.append(car)
+                else:
+                    new_cars.append(car)
+            # 全部车俩处理完
+            self.meet_cache[meet_id] = 1
 
-        return all_cars[:max_count]
+        return old_cars[:max_count], new_cars
 
     def get_auction_meet_list(self, car_type="accident"):
         auctions = []
@@ -289,6 +297,20 @@ class BoCheCrawler(BaseCrawler):
                     return data
                 else:
                     logger.error(f"获取标的信息失败: response={response.json()}")
+                    data = response.json()
+                    message = data.get('Message', '')
+                    if '稍候' in message or '频繁' in message:
+                        match = re.search(r'稍候(\d+)秒', message)
+                        wait_time = 60
+                        if match:
+                            wait_time = int(match.group(1))
+                            print(f"🔍 提取到等待时间: {wait_time} 秒")
+                        else:
+                            print("⚠️ 未匹配到具体时间，使用默认等待时间: 60 秒")
+                        buffer_time = 5
+                        total_sleep = wait_time + buffer_time
+                        print(f"💤 触发限流，程序将休眠 {total_sleep} 秒...")
+                        time.sleep(total_sleep)
                     return self.get_biao_di_info(pai_mai_id, biao_di_id, retry+1)
             else:
                 logger.error(f"获取标的信息失败: response={response.json()}")

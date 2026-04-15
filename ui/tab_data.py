@@ -102,6 +102,7 @@ class DataTab(QWidget):
         self.clear_table_combo.addItem("任务执行表", "task_execution")
         self.clear_table_combo.addItem("事故车表", "accident_car")
         self.clear_table_combo.addItem("二手车表", "used_car")
+        self.clear_table_combo.addItem("图片任务表", "image_task")
         layout.addRow("选择清理表:", self.clear_table_combo)
 
         clear_btn = QPushButton("一键清理")
@@ -119,6 +120,7 @@ class DataTab(QWidget):
         self.table_combo.addItem("二手车表", "used_car")
         self.table_combo.addItem("任务执行表", "task_execution")
         self.table_combo.addItem("任务表", "task")
+        self.table_combo.addItem("图片任务表", "image_task")
         layout.addRow("选择数据表:", self.table_combo)
 
         self.date_edit = QDateEdit()
@@ -156,7 +158,8 @@ class DataTab(QWidget):
             ("task", "任务表"),
             ("task_execution", "任务执行表"),
             ("accident_car", "事故车表"),
-            ("used_car", "二手车表")
+            ("used_car", "二手车表"),
+            ("image_task", "图片任务表")
         ]
 
         self.stats_table.setRowCount(len(tables))

@@ -44,7 +44,7 @@ class ImageQueue:
     def add_task(self, image_task):
         try:
             self.queue.put(image_task)
-            logger.info(f"【图片队列】添加图片下载任务: image_task={image_task}")
+            # logger.info(f"【图片队列】添加图片下载任务: image_task={image_task}")
         except Exception as e:
             logger.error(f"【图片队列】添加图片任务失败: {e}", exc_info=True)
 
@@ -61,6 +61,7 @@ class ImageQueue:
 
     def _process_queue(self):
         task = self.queue.get()
+        logger.info(f"图片下载队列长度，len={self.queue.qsize()}")
         self._download_images(task['car_id'], task['images'], task['vin_str'])
 
     def _download_images(self, car_id, images, vin_str):
@@ -77,17 +78,16 @@ class ImageQueue:
             for _ in as_completed(futures):
                 pass
 
-            if car_id:
-                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                update_list = [
-                    {
-                        "car_id": cid,
-                        "vin_str": vin_str[i],
-                        "status": 1,
-                        "updated_at": now
-                    } for i, cid in enumerate(car_id)
-                ]
-                self.db.batch_update("image_task", update_list)
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            data = {
+                "vin_str": vin_str,
+                "status": 1,
+                "updated_at": now
+            }
+            params = {
+                "car_id": car_id
+            }
+            self.db.update("image_task", data, 'car_id', params)
             return
         except Exception as e:
             logger.error(f"图片下载异常: car_ids={car_id}, {e}", exc_info=True)
@@ -122,11 +122,10 @@ class ImageQueue:
                         os.replace(temp_file_path, file_path)
                         return
                     elif resp.status_code == 404:
-                        logger.warning(f"资源不存在 (404): {image_id}")
+                        logger.warning(f"资源不存在 (404): image_id={image_id}, middle_file_id={middle_file_id}")
                         return
                     else:
-                        logger.warning(
-                            f"下载失败 (状态码 {resp.status_code}): {image_id}, 尝试 {attempt + 1}/{max_retries}")
+                        logger.warning(f"下载失败 (状态码 {resp.status_code}): {image_id}, 尝试 {attempt + 1}/{max_retries}")
             except Exception as e:
                 # 记录具体的异常类型，方便调试
                 logger.warning(f"下载异常: {image_id}, 错误: {type(e).__name__}: {e}, 尝试 {attempt + 1}/{max_retries}")

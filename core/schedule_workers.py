@@ -50,17 +50,21 @@ class ScheduleWorker:
         while True:
             try:
                 self._scan_image_download_tasks()
-                time.sleep(60*10)
+                # todo 10分钟扫一次
+                time.sleep(60*1)
             except Exception as e:
                 logger.error(f"图片任务处理异常: {e}", exc_info=True)
 
     def _scan_crawler_tasks(self):
         if not self.db or not self.executor:
             return
-
+        logger.info(f"【定时任务】开始扫描爬虫定时任务 task 表")
         tasks = self.db.query("SELECT * FROM task WHERE schedule_type = 'cron' AND enabled = 1")
-        current_minute = datetime.now().minute
+        if not tasks:
+            logger.info(f"【定时任务】task 表暂无定时任务")
+            return
 
+        current_minute = datetime.now().minute
         for task in tasks:
             task_id = task["id"]
             interval = int(task.get("cron_expression", 3))
@@ -71,6 +75,7 @@ class ScheduleWorker:
             if task_id not in self.executor.get_active_tasks():
                 logger.info(f"触发定时任务, task_id={task_id}, interval={interval}")
                 self.executor.execute_task(task_id)
+        logger.info(f"【定时任务】结束扫描爬虫定时任务 task 表")
 
     def _scan_image_download_tasks(self):
         sql = """
@@ -86,7 +91,7 @@ class ScheduleWorker:
             tasks = self.db.query(sql, {"limit": page_size, "offset": offset})
             if not tasks:
                 logger.info("【定时任务】所有 status=0 的任务已处理完毕。")
-                break
+                return
             # 查询图片
             for task in tasks:
                 site_name = task.get("site_name")
@@ -98,7 +103,7 @@ class ScheduleWorker:
                 if not crawler.base_url:
                     logger.error(f"【定时任务】网站 [{site_name}] 未登录")
                     continue
-                data = crawler.get_images(task)
+                data = crawler.get_images(**task)
                 images = data['images']
                 vin_str = data['vin_str']
                 if images and len(images) > 4:
@@ -111,6 +116,6 @@ class ScheduleWorker:
                 # 添加下载图片队列
                 self.image_queue.add_task(image_task)
                 # 避免限流
-                time.sleep(1)
+                time.sleep(3)
 
             offset += page_size

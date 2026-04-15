@@ -74,6 +74,7 @@ accident_car_ddl = """
 CREATE TABLE accident_car (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     site_name TEXT,
+    pai_mai_id TEXE,
     detail_urls TEXT,
     car_id TEXT,
     che_liang_pin_pai TEXT,
@@ -113,6 +114,7 @@ used_car_ddl = """
 CREATE TABLE used_car (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     site_name TEXT,
+    pai_mai_id TEXE,
     detail_urls TEXT,
     car_id TEXT,
     che_liang_pin_pai TEXT,
@@ -487,7 +489,8 @@ class Database:
             "task": task_ddl,
             "task_execution": task_execution_ddl,
             "accident_car": accident_car_ddl,
-            "used_car": used_car_ddl
+            "used_car": used_car_ddl,
+            "image_task": image_task_ddl
         }
         ddl = ddl_map.get(table_name)
         if ddl:
@@ -498,6 +501,6 @@ class Database:
 
     # --- 10. 清空所有表并重建 ---
     def rebuild_all_table(self):
-        tables = ["accident_car", "used_car", "task_execution", "task", "account_config"]
+        tables = ["accident_car", "used_car", "task_execution", "task", "account_config", "image_task"]
         for table in tables:
             self.rebuild_table(table)
