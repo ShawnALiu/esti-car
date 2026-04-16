@@ -158,6 +158,8 @@ class BoCheCrawler(BaseCrawler):
 
         images, vin_str = [], None
         biao_di_info = self.get_biao_di_info(pai_mai_id, biao_di_id)
+        # 避免限流
+        time.sleep(3)
         if biao_di_info and biao_di_info['paiPinIDList']:
             pai_pin_id = biao_di_info['paiPinIDList'][0]
             header_info = self.get_pai_pin_header_info(pai_mai_id, pai_pin_id)
