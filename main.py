@@ -15,6 +15,12 @@ from core.schedule_workers import ScheduleWorker
 from ui.main_window import MainWindow
 
 
+def get_resource_path(relative_path):
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), relative_path)
+
+
 def main():
     setup_logging()
     
@@ -22,7 +28,7 @@ def main():
     app.setApplicationName(GLOBAL_APP_NAME)
     app.setApplicationVersion(GLOBAL_APP_VERSION)
 
-    icon_path = os.path.join("data", "icon", "AE86.webp")
+    icon_path = get_resource_path(os.path.join("data", "icon", "EstiCarIcon.jpg"))
     app.setWindowIcon(QIcon(icon_path))
 
     db = Database()
