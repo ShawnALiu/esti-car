@@ -10,7 +10,7 @@ from queue import Queue
 from core import config
 from core.logger import get_logger
 
-logger = get_logger("task_queue")
+logger = get_logger()
 
 
 class ImageQueue:

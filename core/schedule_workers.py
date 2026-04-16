@@ -7,7 +7,7 @@ from datetime import datetime
 from core import get_logger, config
 from crawler import CRAWLER_DICT
 
-logger = get_logger("schedule_workers")
+logger = get_logger()
 
 
 class ScheduleWorker:

@@ -6,7 +6,7 @@ from datetime import datetime
 from core import get_logger
 from crawler import CRAWLER_DICT
 
-logger = get_logger("task_executor")
+logger = get_logger()
 
 
 class TaskExecutor:

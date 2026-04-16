@@ -12,7 +12,7 @@ from core.config import set_data_path
 from core.logger import get_logger
 
 
-logger = get_logger("ui")
+logger = get_logger()
 
 
 class DataTab(QWidget):

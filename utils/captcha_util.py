@@ -8,7 +8,7 @@ import requests
 from core.logger import get_logger
 
 
-logger = get_logger("captcha")
+logger = get_logger()
 
 
 def download_image(url):

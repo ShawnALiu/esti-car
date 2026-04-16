@@ -11,7 +11,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from core.logger import get_logger
 
 
-logger = get_logger("database")
+logger = get_logger()
 
 # --- 1. DDL 定义 (保持原样) ---
 account_config_ddl = """

@@ -15,7 +15,7 @@ from utils import captcha_util
 from core.logger import get_logger
 
 
-logger = get_logger("boche_crawler")
+logger = get_logger()
 
 
 class BoCheCrawler(BaseCrawler):
