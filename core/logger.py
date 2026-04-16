@@ -4,6 +4,9 @@ import sys
 from logging.handlers import TimedRotatingFileHandler
 from datetime import datetime
 
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("requests").setLevel(logging.WARNING)
+
 _loggers = {}
 _log_handler = None
 

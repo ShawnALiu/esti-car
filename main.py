@@ -1,6 +1,7 @@
 import sys
 import os
 
+from core.config import GLOBAL_APP_NAME, GLOBAL_APP_VERSION
 from core.image_task_queue import ImageQueue
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -18,10 +19,10 @@ def main():
     setup_logging()
     
     app = QApplication(sys.argv)
-    app.setApplicationName("估车侠 EstiCar")
-    app.setApplicationVersion("1.0.0")
+    app.setApplicationName(GLOBAL_APP_NAME)
+    app.setApplicationVersion(GLOBAL_APP_VERSION)
 
-    icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "icon", "AE86.webp")
+    icon_path = os.path.join("data", "icon", "AE86.webp")
     app.setWindowIcon(QIcon(icon_path))
 
     db = Database()

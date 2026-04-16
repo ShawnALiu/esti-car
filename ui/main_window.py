@@ -1,6 +1,9 @@
 import sys
 import os
 import logging
+
+from core.config import GLOBAL_APP_VERSION, GLOBAL_APP_NAME
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PyQt5.QtWidgets import (QMainWindow, QTabWidget, QVBoxLayout, QWidget,
@@ -63,7 +66,7 @@ class MainWindow(QMainWindow):
                 pass
 
     def init_ui(self):
-        self.setWindowTitle("估车侠 EstiCar")
+        self.setWindowTitle(GLOBAL_APP_NAME)
         self.setMinimumSize(1800, 900)
         self.resize(1800, 1000)
         self.setWindowFlags(Qt.Window)
@@ -83,8 +86,8 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(content_widget, 1)
 
         header_layout = QHBoxLayout()
-        
-        header = QLabel("估车侠 EstiCar")
+
+        header = QLabel(f"{GLOBAL_APP_NAME} v{GLOBAL_APP_VERSION}")
         header.setFont(QFont("Microsoft YaHei", 18, QFont.Bold))
         header.setAlignment(Qt.AlignCenter)
         header_layout.addWidget(header, 1)
