@@ -711,6 +711,9 @@ class ValuationTab(QWidget):
         if pixmap is None or pixmap.isNull():
             return
 
+        self.current_zoom = 1.0
+        self._original_pixmap = pixmap
+
         dialog = QDialog(self)
         dialog.setWindowTitle(f"车辆图片 - {car_id}")
         dialog.setMinimumSize(600, 450)
@@ -720,7 +723,8 @@ class ValuationTab(QWidget):
         self.popup_scroll = QScrollArea()
         self.popup_scroll.setWidgetResizable(True)
         self.popup_image_label = QLabel()
-        self.popup_image_label.setPixmap(pixmap)
+        self._current_pixmap = pixmap.scaled(580, 400, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.popup_image_label.setPixmap(self._current_pixmap)
         self.popup_image_label.setAlignment(Qt.AlignCenter)
         self.popup_scroll.setWidget(self.popup_image_label)
         layout.addWidget(self.popup_scroll)
@@ -747,9 +751,6 @@ class ValuationTab(QWidget):
         
         layout.addLayout(btn_layout)
         dialog.setLayout(layout)
-        
-        self.current_zoom = 1.0
-        self._original_pixmap = pixmap
         self.popup_dialog = dialog
         dialog.exec_()
 
@@ -759,19 +760,19 @@ class ValuationTab(QWidget):
             
         if reset:
             self.current_zoom = 1.0
+            self._current_pixmap = self._original_pixmap
         else:
             self.current_zoom *= factor
-        
-        if self.current_zoom < 0.1:
-            self.current_zoom = 0.1
-        if self.current_zoom > 5.0:
-            self.current_zoom = 5.0
+            if self.current_zoom < 0.1:
+                self.current_zoom = 0.1
+            if self.current_zoom > 5.0:
+                self.current_zoom = 5.0
         
         if hasattr(self, 'popup_image_label'):
-            original = self._original_pixmap
-            scaled = original.scaled(
-                int(original.width() * self.current_zoom),
-                int(original.height() * self.current_zoom),
-                Qt.KeepAspectRatio, Qt.SmoothTransformation
+            scaled = self._current_pixmap.scaled(
+                int(self._current_pixmap.width() * self.current_zoom),
+                int(self._current_pixmap.height() * self.current_zoom),
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation
             )
             self.popup_image_label.setPixmap(scaled)
