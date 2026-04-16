@@ -87,7 +87,7 @@ class ImageQueue:
             params = {
                 "car_id": car_id
             }
-            self.db.update("image_task", data, 'car_id', params)
+            self.db.update("image_task", data, 'car_id = :car_id', params)
             return
         except Exception as e:
             logger.error(f"图片下载异常: car_ids={car_id}, {e}", exc_info=True)
