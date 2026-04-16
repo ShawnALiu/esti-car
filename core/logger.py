@@ -5,6 +5,7 @@ from logging.handlers import TimedRotatingFileHandler
 from datetime import datetime
 
 _loggers = {}
+_log_handler = None
 
 def get_logger(name: str = None):
     global _loggers
@@ -15,60 +16,71 @@ def get_logger(name: str = None):
     if name in _loggers:
         return _loggers[name]
     
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:
+        from core.config import get_data_path
+        data_path = get_data_path()
+        logs_dir = os.path.join(data_path, "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+        
+        formatter = logging.Formatter(
+            '%(asctime)s | %(levelname)s | %(filename)s:%(lineno)d | %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        
+        log_file = os.path.join(logs_dir, f"esti-car.log")
+        
+        file_handler = TimedRotatingFileHandler(
+            log_file,
+            when='h',
+            interval=1,
+            backupCount=720,
+            encoding='utf-8'
+        )
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(formatter)
+        
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(formatter)
+        
+        root_logger.addHandler(file_handler)
+        root_logger.addHandler(console_handler)
+        root_logger.setLevel(logging.DEBUG)
+    
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
-    logger.propagate = False
-    
-    from core.config import get_data_path
-    data_path = get_data_path()
-    logs_dir = os.path.join(data_path, "logs")
-    os.makedirs(logs_dir, exist_ok=True)
-    
-    log_file = os.path.join(logs_dir, f"{name}.log")
-    
-    formatter = logging.Formatter(
-        '%(asctime)s | %(levelname)s | %(filename)s:%(lineno)d | %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    
-    file_handler = TimedRotatingFileHandler(
-        log_file,
-        when='h',
-        interval=1,
-        backupCount=720,
-        encoding='utf-8'
-    )
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(formatter)
-    
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(formatter)
-    
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
+    logger.propagate = True
     
     _loggers[name] = logger
     return logger
 
 
 def setup_logging():
-    import core.task_executor
-    import core.schedule_workers
-    import core.config
-    import db.database
-    import ui.main_window
-    
-    core.task_executor.logger = get_logger("task_executor")
-    core.schedule_workers.logger = get_logger("schedule_workers")
-    core.config.logger = get_logger("config")
-    db.database.logger = get_logger("database")
-    ui.main_window.logger = get_logger("ui")
-    
     logger = get_logger()
     logger.info("=" * 50)
     logger.info("日志系统初始化完成")
     logger.info("=" * 50)
+
+
+class LogHandler(logging.Handler):
+    def __init__(self, callback=None):
+        super().__init__()
+        self.callback = callback
+        self._buffer = []
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            if self.callback:
+                self.callback(msg)
+            else:
+                self._buffer.append(msg)
+        except:
+            pass
+    
+    def flush(self):
+        self._buffer.clear()
 
 
 class LogCapture:
