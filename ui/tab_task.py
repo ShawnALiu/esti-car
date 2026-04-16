@@ -152,22 +152,15 @@ class TaskTab(QWidget):
             self.task_table.setItem(i, 7, QTableWidgetItem(enabled_text))
 
             task_id = task["id"]
-            is_running = task_id in active_task_ids
-            is_manual = schedule_type == "manual"
 
             enabled = task.get("enabled") == 1
             toggle_btn = QPushButton("停用" if enabled else "启用")
-            if is_manual or is_running:
-                toggle_btn.setEnabled(False)
-            else:
-                toggle_btn.clicked.connect(lambda checked, tid=task_id: self.toggle_task_enabled(tid))
+            toggle_btn.clicked.connect(lambda checked, tid=task_id: self.toggle_task_enabled(tid))
             self.task_table.setCellWidget(i, 8, toggle_btn)
 
             btn = QPushButton("执行")
             edit_btn = QPushButton("编辑")
-            btn.setEnabled(not is_running)
-            edit_btn.setEnabled(not is_running)
-            btn.clicked.connect(lambda checked, tid=task_id, b=btn, e=edit_btn: self.execute_task(tid, b, e))
+            btn.clicked.connect(lambda checked, tid=task_id, b=btn, e=edit_btn: self.execute_task_single(tid, b, e))
             self.task_table.setCellWidget(i, 9, btn)
             edit_btn.clicked.connect(lambda checked, tid=task_id: self.show_edit_dialog(tid))
             self.task_table.setCellWidget(i, 10, edit_btn)
@@ -209,29 +202,20 @@ class TaskTab(QWidget):
             status_text = "成功" if exe.get("status") == "success" else ("失败" if exe.get("status") == "failed" else "运行中")
             self.history_table.setItem(i, 5, QTableWidgetItem(status_text))
 
-    def execute_task(self, task_id, btn, edit_btn):
-        if task_id in self.executor.get_active_tasks():
-            return
-        
-        self.executor.clear_last_error()
+    def execute_task_single(self, task_id, btn, edit_btn):
         btn.setEnabled(False)
         edit_btn.setEnabled(False)
         self.executor.execute_task(task_id)
         
-        QTimer.singleShot(100, lambda: self.check_task_error(task_id, btn, edit_btn))
-    
-    def check_task_error(self, task_id, btn, edit_btn):
-        error = self.executor.get_last_error()
-        if error:
-            self.executor.clear_last_error()
-            if not btn.isVisible():
-                return
-            try:
-                btn.setEnabled(True)
-                edit_btn.setEnabled(True)
-            except:
-                pass
-            QMessageBox.warning(self, "错误", error)
+        QTimer.singleShot(1000, lambda: self._enable_buttons(btn, edit_btn))
+
+    def _enable_buttons(self, btn, edit_btn):
+        try:
+            btn.setEnabled(True)
+            edit_btn.setEnabled(True)
+        except:
+            pass
+
 
     def show_edit_dialog(self, task_id):
         dialog = CreateTaskDialog(self.db, self, task_id)

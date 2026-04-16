@@ -98,10 +98,10 @@ class ScheduleWorker:
                 car_id = task.get("car_id")
                 crawler = CRAWLER_DICT.get(site_name)
                 if not crawler:
-                    logger.error(f"【定时任务】未找到网站 [{site_name}] 对应的爬虫实例")
+                    # logger.error(f"【定时任务】未找到网站 [{site_name}] 对应的爬虫实例")
                     continue
                 if not crawler.base_url:
-                    logger.error(f"【定时任务】网站 [{site_name}] 未登录")
+                    # logger.error(f"【定时任务】网站 [{site_name}] 未登录")
                     continue
                 data = crawler.get_images(**task)
                 images = data['images']
