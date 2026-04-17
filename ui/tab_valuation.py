@@ -1,3 +1,4 @@
+import datetime
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -60,17 +61,17 @@ class ValuationTab(QWidget):
         model_layout.addWidget(self.model_input)
         search_layout.addLayout(model_layout)
 
-        current_year = 2026
+        self.current_year = datetime.datetime.now().year
         year_layout = QHBoxLayout()
         year_layout.addWidget(QLabel("出厂日期:"))
         self.year_from = QLineEdit()
-        self.year_from.setPlaceholderText(f"开始年份(默认{current_year - 5})")
-        self.year_from.setText(str(current_year - 5))
+        self.year_from.setPlaceholderText(f"开始年份(默认{self.current_year - 5})")
+        self.year_from.setText(str(self.current_year - 5))
         year_layout.addWidget(self.year_from)
         year_layout.addWidget(QLabel("至"))
         self.year_to = QLineEdit()
-        self.year_to.setPlaceholderText(f"结束年份(默认{current_year})")
-        self.year_to.setText(str(current_year))
+        self.year_to.setPlaceholderText(f"结束年份(默认{self.current_year})")
+        self.year_to.setText(str(self.current_year))
         year_layout.addWidget(self.year_to)
         search_layout.addLayout(year_layout)
 
@@ -355,38 +356,33 @@ class ValuationTab(QWidget):
         if model:
             where_clauses.append("xuan_ze_zi_xi_lie LIKE :model")
             params["model"] = f"%{model}%"
-
-        current_year = 2026
-        
         try:
-            year_from_val = int(self.year_from.text()) if self.year_from.text().strip() else (current_year - 5)
-            year_to_val = int(self.year_to.text()) if self.year_to.text().strip() else current_year
+            year_from_val = int(self.year_from.text()) if self.year_from.text().strip() else None
+            year_to_val = int(self.year_to.text()) if self.year_to.text().strip() else None
             if year_from_val and year_to_val:
                 where_clauses.append("chu_chang_ri_qi BETWEEN :year_from AND :year_to")
-                params["year_from"] = min(year_from_val, year_to_val)
-                params["year_to"] = max(year_from_val, year_to_val)
+                params["year_from"] = year_from_val
+                params["year_to"] = year_to_val
+            elif not year_from_val and year_to_val:
+                where_clauses.append("chu_chang_ri_qi <= :year_to")
+                params["year_to"] = year_to_val
+            elif year_from_val and not year_to_val:
+                where_clauses.append("chu_chang_ri_qi >= :year_from")
+                params["year_from"] = year_from_val
         except:
             pass
-
-        price_min = self.price_min.text().strip()
-        price_max = self.price_max.text().strip()
-        if price_min:
+        if self.price_min.text().strip():
             where_clauses.append("yi_kou_jia >= :price_min")
-            params["price_min"] = float(price_min)
-        if price_max:
+            params["price_min"] = float(self.price_min.text().strip())
+        if self.price_max.text().strip():
             where_clauses.append("yi_kou_jia <= :price_max")
-            params["price_max"] = float(price_max)
-
+            params["price_max"] = float(self.price_max.text().strip())
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
         self.where_sql = where_sql
         self.search_params = params
 
         table = "accident_car" if car_type == "事故车" else "used_car"
-        
-        self.total_count = self.db.query_one(
-            f"SELECT COUNT(*) as cnt FROM {table} WHERE {where_sql}", params
-        )["cnt"]
-
+        self.total_count = self.db.query_one(f"SELECT COUNT(*) as cnt FROM {table} WHERE {where_sql}", params)["cnt"]
         self.current_page = 0
         self.load_page()
 
