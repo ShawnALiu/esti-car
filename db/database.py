@@ -504,3 +504,6 @@ class Database:
         tables = ["accident_car", "used_car", "task_execution", "task", "account_config", "image_task"]
         for table in tables:
             self.rebuild_table(table)
+
+
+global_db = Database()

@@ -3,6 +3,7 @@ import os
 
 from core.config import GLOBAL_APP_NAME, GLOBAL_APP_VERSION
 from core.image_task_queue import ImageQueue
+from db import database
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -31,12 +32,11 @@ def main():
     icon_path = get_resource_path(os.path.join("data", "icon", "EstiCarIcon.jpg"))
     app.setWindowIcon(QIcon(icon_path))
 
-    db = Database()
-    executor = TaskExecutor(db)
-    image_queue = ImageQueue(db)
-    schedule_worker = ScheduleWorker(db, executor, image_queue)
+    executor = TaskExecutor(database.global_db)
+    image_queue = ImageQueue(database.global_db)
+    schedule_worker = ScheduleWorker(database.global_db, executor, image_queue)
 
-    window = MainWindow(db, executor)
+    window = MainWindow(database.global_db, executor)
     window.show()
 
     sys.exit(app.exec_())

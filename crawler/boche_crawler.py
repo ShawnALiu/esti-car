@@ -11,6 +11,9 @@ from cachetools import TTLCache
 from crawler.car_crawler import BaseCrawler
 import uuid
 
+from db import database
+from db.database import Database
+from schedule.auction_monitor import AuctionMonitor
 from utils import captcha_util
 from core.logger import get_logger
 
@@ -22,6 +25,7 @@ class BoCheCrawler(BaseCrawler):
     
     def __init__(self, site_name="博车网", base_url=None, username=None, password=None):
         super().__init__(site_name, base_url, username, password)
+        self.db = database.global_db
         self.session = requests.Session()
 
         self.session_id = None
@@ -40,6 +44,8 @@ class BoCheCrawler(BaseCrawler):
         self.device_id = str(uuid.uuid4())
         self.max_retry = 2
         self.meet_cache = TTLCache(maxsize=1000, ttl=3600*24*7)
+        # 拍卖会websocket监控
+        self.meet_monitor_cache = TTLCache(maxsize=1000, ttl=3600*24*3)
 
     def update_credentials(self, base_url, username, password):
         self.base_url = base_url
@@ -187,6 +193,9 @@ class BoCheCrawler(BaseCrawler):
                     new_cars.append(car)
             # 全部车俩处理完
             self.meet_cache[meet_id] = 1
+            # 启动1个websocket监控车辆价格更新
+            prior_end_time = meet['PriorEndTime']
+            self._creat_meet_monitor(car_type, prior_end_time, meet_id)
 
         return old_cars[:max_count], new_cars
 
@@ -228,6 +237,7 @@ class BoCheCrawler(BaseCrawler):
                             "count": item.get("count", 0),
                             "start_date": item.get("startDate", ""),
                             "paimaihuiLeixing": item.get("paimaihuiLeixing", 0),
+                            'PriorEndTime': item.get("PriorEndTime", None)
                         })
                 else:
                     logger.error(f"获取拍卖会列表失败: response={response}")
@@ -435,6 +445,12 @@ class BoCheCrawler(BaseCrawler):
         except:
             pass
         return ""
+
+    def _creat_meet_monitor(self, car_type, prior_end_time, meet_id):
+        if meet_id in self.meet_monitor_cache:
+            return
+        monitor = AuctionMonitor(self.db, car_type, prior_end_time, self.session_id, "07d5bca1-7bdd-4c4e-a46e-b70046390cf5")
+        self.meet_monitor_cache[meet_id] = monitor
 
 
 boche_crawler_ins = BoCheCrawler()
