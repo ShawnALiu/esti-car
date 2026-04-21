@@ -3,6 +3,8 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
+from cachetools import TTLCache
+
 from core import get_logger
 from crawler import CRAWLER_DICT
 
@@ -26,7 +28,7 @@ class TaskExecutor:
         self._initialized = True
         self.db = db
         self.task_pool = ThreadPoolExecutor(max_workers=5)
-        self.active_tasks = {}
+        self.active_tasks = TTLCache(maxsize=100, ttl=60*2)
         self.last_error = None
 
 
@@ -69,21 +71,19 @@ class TaskExecutor:
             "status": "running"
         })
 
-        self.active_tasks[task_id] = execution_id
         try:
+            self.active_tasks[task_id] = execution_id
             if task["task_type"] == "accident":
                 old_cars, new_cars = crawler.get_accident_cars(max_count=task["max_count"])
                 all_cars = old_cars + new_cars
-                if all_cars:
-                    self.db.batch_upsert_sqlite("accident_car", all_cars)
                 if new_cars:
+                    self.db.batch_upsert_sqlite("accident_car", all_cars)
                     self._add_image_tasks(new_cars)
             elif task["task_type"] == "used":
                 old_cars, new_cars = crawler.get_used_cars(max_count=task["max_count"])
                 all_cars = old_cars + new_cars
-                if all_cars:
-                    self.db.batch_upsert_sqlite("used_car", all_cars)
                 if new_cars:
+                    self.db.batch_upsert_sqlite("used_car", all_cars)
                     self._add_image_tasks(new_cars)
 
             self.db.update("task_execution", {

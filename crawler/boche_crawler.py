@@ -12,7 +12,6 @@ from crawler.car_crawler import BaseCrawler
 import uuid
 
 from db import database
-from db.database import Database
 from schedule.auction_monitor import AuctionMonitor
 from utils import captcha_util
 from core.logger import get_logger
@@ -449,8 +448,12 @@ class BoCheCrawler(BaseCrawler):
     def _creat_meet_monitor(self, car_type, prior_end_time, meet_id):
         if meet_id in self.meet_monitor_cache:
             return
-        monitor = AuctionMonitor(self.db, car_type, prior_end_time, self.session_id, "07d5bca1-7bdd-4c4e-a46e-b70046390cf5")
+        monitor = AuctionMonitor(self.db, car_type, prior_end_time, self.session_id, meet_id)
         self.meet_monitor_cache[meet_id] = monitor
+        
+        import threading
+        t = threading.Thread(target=monitor.start, daemon=True)
+        t.start()
 
 
 boche_crawler_ins = BoCheCrawler()
