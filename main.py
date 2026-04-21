@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import QApplication
 from PyQt5.QtGui import QIcon
 from db.database import Database
 from core.task_executor import TaskExecutor
-from core.schedule_workers import ScheduleWorker
+from schedule.schedule_workers import ScheduleWorker
 from ui.main_window import MainWindow
 
 
