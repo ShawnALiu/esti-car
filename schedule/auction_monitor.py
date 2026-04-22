@@ -65,6 +65,7 @@ class AuctionMonitor:
     # ================= 核心：接收消息 =================
     def on_message(self, ws, message):
         try:
+            logger.info(f"【当前价】接收到消息，message={message}")
             data = json.loads(message)
             data_type = data.get('type', None)
             if data_type != 2:

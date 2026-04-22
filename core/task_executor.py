@@ -93,6 +93,7 @@ class TaskExecutor:
             }, "id = :id", {"id": execution_id})
         except Exception as e:
             self.last_error = str(e)
+            logger.error(f"任务执行，last_error={self.last_error}")
             self.db.update("task_execution", {
                 "end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "status": "failed",
