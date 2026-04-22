@@ -80,7 +80,7 @@ class AuctionMonitor:
 
                 if car_id and zui_xin_chu_jia:
                     update_data = {
-                        "zui_xin_chu_jia": str(zui_xin_chu_jia)
+                        "zui_xin_chu_jia": int(zui_xin_chu_jia)
                     }
                     params = {
                         "car_id": car_id

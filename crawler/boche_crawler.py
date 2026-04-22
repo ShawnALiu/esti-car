@@ -366,6 +366,14 @@ class BoCheCrawler(BaseCrawler):
 
     def _convert_car_to_db_format(self, pai_mai_id, item):
         images = []
+
+        zui_xin_chu_jia = item.get("ZuiXinChuJia", "")
+        if zui_xin_chu_jia == '':
+            zui_xin_chu_jia = None
+        else:
+            zui_xin_chu_jia = zui_xin_chu_jia.replace('¥', '').replace(',', '')
+            zui_xin_chu_jia = int(zui_xin_chu_jia)
+
         return {
             "pai_mai_id": pai_mai_id,
             "site_name": self.site_name,
@@ -385,8 +393,8 @@ class BoCheCrawler(BaseCrawler):
             "chesunyuanyin": item.get("chesunyuanyin", ""),
             "pai_mai_hui_start_time": item.get("paiMaiHuiStartTime", ""),
             "pai_mai_hui_lei_xing": item.get("paiMaiHuiLeiXing", 0),
-            "zui_xin_chu_jia": item.get("ZuiXinChuJia", ""),
-            "yi_kou_jia": float(item.get("yiKouJia", 0) or 0),
+            "zui_xin_chu_jia": zui_xin_chu_jia,
+            "yi_kou_jia": int(item.get("yiKouJia", 0) or 0),
             "gu_jia_ping_ji": item.get("guJiaPingJi", ""),
             "wai_guan_ping_ji": item.get("waiGuanPingJi", ""),
             "main_car": item.get("MainCar", 0),
