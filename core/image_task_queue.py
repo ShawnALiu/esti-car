@@ -30,7 +30,7 @@ class ImageQueue:
         self._initialized = True
         self.db = db
         self.queue = Queue()
-        self.pool = ThreadPoolExecutor(max_workers=10)
+        self.pool = ThreadPoolExecutor(max_workers=5)
         self.running = True
 
         self.download_session = requests.Session()

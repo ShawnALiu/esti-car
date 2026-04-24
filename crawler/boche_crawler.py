@@ -180,6 +180,8 @@ class BoCheCrawler(BaseCrawler):
     def get_cars(self, max_count, car_type):
         old_cars, new_cars = [], []
         meets = self.get_auction_meet_list(car_type)
+        if len(meets) == 0:
+            return old_cars, new_cars
 
         for meet in meets:
             meet_id = meet['id']
@@ -192,9 +194,12 @@ class BoCheCrawler(BaseCrawler):
                     new_cars.append(car)
             # 全部车俩处理完
             self.meet_cache[meet_id] = 1
-            # 启动1个websocket监控车辆价格更新
-            prior_end_time = meet['PriorEndTime']
-            self._creat_meet_monitor(car_type, prior_end_time, meet_id)
+
+        # 接受到的消息都是一样，因此只要启动1个websocket监控车辆价格更新
+        if len(self.meet_monitor_cache) == 0:
+            prior_end_time = meets[0]['PriorEndTime']
+            monitor = self._creat_meet_monitor(car_type, prior_end_time, meets[0]['id'])
+            self.meet_monitor_cache[meets[0]['id']] = monitor
 
         return old_cars[:max_count], new_cars
 
@@ -373,7 +378,7 @@ class BoCheCrawler(BaseCrawler):
         else:
             zui_xin_chu_jia = zui_xin_chu_jia.replace('¥', '').replace(',', '')
             zui_xin_chu_jia = int(zui_xin_chu_jia)
-
+        
         return {
             "pai_mai_id": pai_mai_id,
             "site_name": self.site_name,
@@ -457,11 +462,12 @@ class BoCheCrawler(BaseCrawler):
         if meet_id in self.meet_monitor_cache:
             return
         monitor = AuctionMonitor(self.db, car_type, prior_end_time, self.session_id, meet_id)
-        self.meet_monitor_cache[meet_id] = monitor
         
         import threading
         t = threading.Thread(target=monitor.start, daemon=True)
         t.start()
+
+        return monitor
 
 
 boche_crawler_ins = BoCheCrawler()

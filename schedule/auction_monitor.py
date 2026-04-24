@@ -77,11 +77,13 @@ class AuctionMonitor:
             if message_type == 1:
                 car_id = res_data.get("vehicleid")
                 zui_xin_chu_jia = res_data.get("price")
+                chu_jia_ci_shu = res_data.get("chuJiaCiShu")
                 # logger.info(f"【当前价】车辆={car_id}，最新价格={zui_xin_chu_jia}")
 
                 if car_id and zui_xin_chu_jia:
                     update_data = {
-                        "zui_xin_chu_jia": int(zui_xin_chu_jia)
+                        "zui_xin_chu_jia": int(zui_xin_chu_jia),
+                        "chu_jia_ci_shu": int(chu_jia_ci_shu)
                     }
                     params = {
                         "car_id": car_id

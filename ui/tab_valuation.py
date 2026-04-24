@@ -95,8 +95,8 @@ class ValuationTab(QWidget):
         left_layout.addWidget(search_group)
 
         self.car_list = QTableWidget()
-        self.car_list.setColumnCount(8)
-        self.car_list.setHorizontalHeaderLabels(["ID", "品牌", "车型", "出厂年份", "起拍价", "最新出价", "拍卖时间", "是否新能源"])
+        self.car_list.setColumnCount(9)
+        self.car_list.setHorizontalHeaderLabels(["ID", "品牌", "车型", "出厂年份", "起拍价", "最新出价", "出价次数", "拍卖时间", "是否新能源"])
         self.car_list.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.car_list.setSelectionMode(QAbstractItemView.SingleSelection)
         self.car_list.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
@@ -107,6 +107,7 @@ class ValuationTab(QWidget):
         self.car_list.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
         self.car_list.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents)
         self.car_list.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents)
+        self.car_list.horizontalHeader().setSectionResizeMode(8, QHeaderView.ResizeToContents)
         self.car_list.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.car_list.setStyleSheet("QHeaderView::section { font-weight: bold; }")
         self.car_list.cellClicked.connect(self.on_car_selected)
@@ -151,7 +152,7 @@ class ValuationTab(QWidget):
         common_fields = [
             ("id", "ID"), ("che_liang_pin_pai", "品牌"), ("xuan_ze_zi_xi_lie", "车型"),
             ("chu_chang_ri_qi", "出厂年份"), ("chesunyuanyin", "车损原因"), ("yi_kou_jia", "起拍价"),
-            ("zui_xin_chu_jia", "最新出价"), ("is_xin_neng_yuan", "是否新能源"),
+            ("zui_xin_chu_jia", "最新出价"), ("chu_jia_ci_shu", "出价次数"), ("is_xin_neng_yuan", "是否新能源"),
             ("gu_jia_ping_ji", "估价评级"), ("wai_guan_ping_ji", "外观评级"),
             ("pai_mai_hui_start_time", "拍卖开始时间"), ("pai_mai_jie_shu_date", "拍卖结束时间")
         ]
@@ -226,7 +227,7 @@ class ValuationTab(QWidget):
         used_fields = [
             ("id", "ID"), ("che_liang_pin_pai", "品牌"), ("xuan_ze_zi_xi_lie", "车型"),
             ("chu_chang_ri_qi", "出厂年份"), ("chesunyuanyin", "车损原因"), ("yi_kou_jia", "起拍价"),
-            ("zui_xin_chu_jia", "最新出价"), ("is_xin_neng_yuan", "是否新能源"),
+            ("zui_xin_chu_jia", "最新出价"), ("chu_jia_ci_shu", "出价次数"), ("is_xin_neng_yuan", "是否新能源"),
             ("gu_jia_ping_ji", "估价评级"), ("wai_guan_ping_ji", "外观评级"),
             ("pai_mai_hui_start_time", "拍卖开始时间"), ("pai_mai_jie_shu_date", "拍卖结束时间")
         ]
@@ -293,8 +294,8 @@ class ValuationTab(QWidget):
         similar_group = QGroupBox("相似车辆参考")
         similar_layout = QVBoxLayout()
         self.similar_table = QTableWidget()
-        self.similar_table.setColumnCount(9)
-        self.similar_table.setHorizontalHeaderLabels(["ID", "品牌", "车型", "出厂年份", "起拍价", "最新出价", "车损原因", "估价评级", "外观评级"])
+        self.similar_table.setColumnCount(10)
+        self.similar_table.setHorizontalHeaderLabels(["ID", "品牌", "车型", "出厂年份", "起拍价", "最新出价", "出价次数", "车损原因", "估价评级", "外观评级"])
         self.similar_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.similar_table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.similar_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
@@ -406,9 +407,11 @@ class ValuationTab(QWidget):
             self.car_list.setItem(i, 3, QTableWidgetItem(str(car.get("chu_chang_ri_qi", ""))))
             self.car_list.setItem(i, 4, QTableWidgetItem(f"¥{car.get('yi_kou_jia', 0)}"))
             self.car_list.setItem(i, 5, QTableWidgetItem(f"¥{car.get('zui_xin_chu_jia', 0)}"))
-            self.car_list.setItem(i, 6, QTableWidgetItem(car.get("pai_mai_hui_start_time", "")))
+            chu_jia_ci_shu = car.get("chu_jia_ci_shu", 0) or 0
+            self.car_list.setItem(i, 6, QTableWidgetItem(str(chu_jia_ci_shu)))
+            self.car_list.setItem(i, 7, QTableWidgetItem(car.get("pai_mai_hui_start_time", "")))
             is_xny = "是" if car.get("is_xin_neng_yuan") == 1 else "否"
-            self.car_list.setItem(i, 7, QTableWidgetItem(is_xny))
+            self.car_list.setItem(i, 8, QTableWidgetItem(is_xny))
             self.car_list.item(i, 0).setData(Qt.UserRole, car)
 
         total_pages = max(1, (self.total_count + self.page_size - 1) // self.page_size)
@@ -650,10 +653,11 @@ class ValuationTab(QWidget):
             self.similar_table.setItem(i, 3, QTableWidgetItem(str(sc.get("chu_chang_ri_qi", ""))))
             self.similar_table.setItem(i, 4, QTableWidgetItem(f"¥{sc.get('yi_kou_jia', 0)}"))
             self.similar_table.setItem(i, 5, QTableWidgetItem(f"¥{sc.get('zui_xin_chu_jia', 0)}"))
-            self.similar_table.setItem(i, 6, QTableWidgetItem(sc.get("chesunyuanyin", "")))
-            self.similar_table.setItem(i, 7, QTableWidgetItem(sc.get("gu_jia_ping_ji", "")))
-            self.similar_table.setItem(i, 8, QTableWidgetItem(sc.get("wai_guan_ping_ji", "")))
-            self.similar_table.setItem(i, 7, QTableWidgetItem(sc.get("wai_guan_ping_ji", "")))
+            chu_jia_ci_shu = sc.get("chu_jia_ci_shu", 0) or 0
+            self.similar_table.setItem(i, 6, QTableWidgetItem(str(chu_jia_ci_shu)))
+            self.similar_table.setItem(i, 7, QTableWidgetItem(sc.get("chesunyuanyin", "")))
+            self.similar_table.setItem(i, 8, QTableWidgetItem(sc.get("gu_jia_ping_ji", "")))
+            self.similar_table.setItem(i, 9, QTableWidgetItem(sc.get("wai_guan_ping_ji", "")))
 
         self.update_similar_page_label()
 
